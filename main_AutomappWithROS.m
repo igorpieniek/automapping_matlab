@@ -49,6 +49,8 @@ RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania tra
 
 simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykonywania programu
 
+% PLANNER RRT* INIT (TEST PLANNERA)
+
 
 %-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
 
@@ -99,8 +101,9 @@ while true
         
         % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
         explo_points = [];
+        disp("Exploratory points search START!");
         explo_points = exploratory_points2(explo_map_occ, explo_points, last_pose_num, realPoses, middle_Pt, maxLidarRange );
-        
+        disp("Exploratory points search DONE!");
         % weryfikacja dzieci wzglêdem osiagnietych pozycji
         if ~isempty(child) && ~isempty(middle_Pt)
             child = verify_PointsToPosses(child, middle_Pt);
@@ -134,12 +137,20 @@ while true
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     % Inicjalizacja planera
     disp("Planner START!");
-    vMap = validatorOccupancyMap;
+    ss = stateSpaceSE2;
+    vMap = validatorOccupancyMap(ss);
     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
-    inflate(temp_map, 0.01);                                                             % powiêkszenie zajêtych obszarow
+% % inflate(temp_map, 0.01);                                                             % powiêkszenie zajêtych obszarow
     vMap.Map = temp_map;
-    planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
+    vMap.ValidationDistance = 0.01;
  
+    ss.StateBounds = [temp_map.XWorldLimits; temp_map.YWorldLimits; [-pi pi]];
+    %     planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
+    planner = plannerRRTStar(ss,vMap);
+    planner.ContinueAfterGoalReached = true;
+    
+    planner.MaxIterations = 2500;
+    planner.MaxConnectionDistance = 0.1;
     
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
     start_Location = realPoses(end,:);
@@ -149,7 +160,8 @@ while true
     
     % Proba wyznaczenia trasy i obsulga b³êdów
     try
-        plannerPoses = plannerProcess(planner, start_Location, stop_Location);
+%         plannerPoses = plannerProcess(planner, start_Location, stop_Location);
+        [plannerPoses, ~] = plan(planner,start_Location,stop_Location);
     catch er
         switch er.identifier
             case 'nav:navalgs:astar:OccupiedLocation'
@@ -173,12 +185,12 @@ while true
     disp("Navigation to point...");
     
     goalRadius = 0.2;
-    distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
-    controller = controllerPurePursuit("Waypoints",plannerPoses,"DesiredLinearVelocity",0.5,"MaxAngularVelocity", pi/4, "LookaheadDistance", 0.3);
+    distanceToGoal = norm(realPoses(end,1:2) - plannerPoses.States(end, 1:2));
+    controller = controllerPurePursuit("Waypoints",plannerPoses.States,"DesiredLinearVelocity",0.5,"MaxAngularVelocity", pi/4, "LookaheadDistance", 0.3);
     while( distanceToGoal > goalRadius )
         
         %sprawdzenie œcie¿ki, czy zosta³a poprawnie 
-        isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses(:,1:2)));
+        isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses.States(:,1:2)));
         if isRouteOccupied 
             %   MOTOR STOP
             rosmsg.Data = [0 0];

@@ -9,8 +9,8 @@ MapResolution = 50;
 MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Parametry plannera A*
-MinTurningRadius = 0.01;         % Minimalny promien zawracania
-MotionPrimitiveLength = 0.01;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
+MinTurningRadius = 0.1;         % Minimalny promien zawracania
+MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
 
 % ROS Node init
@@ -48,6 +48,8 @@ RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania tra
 
 
 simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykonywania programu
+
+% PLANNER RRT* INIT (TEST PLANNERA)
 
 
 %-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
@@ -138,6 +140,8 @@ while true
     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
     inflate(temp_map, 0.01);                                                             % powiêkszenie zajêtych obszarow
     vMap.Map = temp_map;
+    vMap.ValidationDistance = 0.01;
+    ss = stateSpaceSE2;
     planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
  
     
@@ -153,13 +157,13 @@ while true
     catch er
         switch er.identifier
             case 'nav:navalgs:astar:OccupiedLocation'
-                warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
+                warning('Droga nie moze zostac wyznaczona! Powod : OccupiedLocation');
                 continue;
             case 'nav:navalgs:hybridastar:StartError'
-                warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
+                warning('Droga nie moze zostac wyznaczona! (planer A* error)  : StartError');
                 continue;
             case 'nav:navalgs:hybridastar:GoalError'
-                warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
+                warning('Droga nie moze zostac wyznaczona! (planer A* error)  : GoalError');
                  continue;
             otherwise
                 rethrow(er);
