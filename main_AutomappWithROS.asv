@@ -9,15 +9,16 @@ MapResolution = 50;
 MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Parametry plannera A*
-MinTurningRadius = 0.5;         % Minimalny promien zawracania
-MotionPrimitiveLength = 0.5;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
+MinTurningRadius = 0.01;         % Minimalny promien zawracania
+MotionPrimitiveLength = 0.01;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
 
-% Wyniki
-show_child_points = true;       % Aktualne przedstawienie wszystkich punktów rozgalezien
-show_robot_path = true;         % Wyswietlanie przebytej sciezki przez robota
-show_current_target = true;     % Wyswietlanie aktualego punktu uznanego jako cel do ktorego zostaje wyznaczona sciezka
-
+% ROS Node init
+node_automap = ros.Node('/matlab_automap');
+pub_automap = ros.Publisher(node_automap, '/matlab_velocity', 'std_msgs/Float32MultiArray');
+rosmsg = rosmessage('std_msgs/Float32MultiArray');
+rosmsg.Data = [0 0];
+send(pub_automap, rosmsg);
 %%----------------- INICJALIZACJA --------------------------------------------------------------
 
 % Inicjacja nowej mapy
@@ -26,10 +27,10 @@ explo_map = Lidar_Init();
 
 % Pierwszy pomiar w punkcie startowym
 Lidar_subscriber = rossubscriber('/scan');
-explo_map = Lidar_Aq(explo_map, Lidar_subscriber);
+explo_map = LidarAq(explo_map, Lidar_subscriber);
 [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
 
-startPoint = [0 0 0 ];
+
 
 last_pose_num  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
 explo_points=[];    % tablica na punkty eksploracyjne
@@ -42,7 +43,7 @@ goback_flag = false;        % flaga podnoszona przy braku nowych punktow dla dan
 child = [];                 % macierz na punkty rozgalezien dla danego identyfikatora rozgalezienia (rodzica)
 middle_Pt = [];             % macierz na "punkty srodkowe" - do okreslenia obszarow zablokowanych dla wyszukiwania punktow eksploracyjnych (sposob filtracji)
 parentTochild_route = [];   % macierz na zapisywanie punktów po ktorych robot moze wrocic do rozgalezienia z ktorego wychodzi galaz na ktorej sie aktualnie znajduje
-parentTochild_route = [0 startPoint(1,1:2)]; % dodanie pierwszego punktu powrotnego
+parentTochild_route = [0 realPoses(end,1:2)]; % dodanie pierwszego punktu powrotnego
 RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania trasy
 
 
@@ -50,7 +51,7 @@ simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykony
 
 
 %-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
-figure  
+
 while true
     %%--------------- Czêœæ algortytmu odpowiadaj¹ca za rozgalezienia -------------
     
@@ -76,7 +77,7 @@ while true
             if ~isempty(temp)
                 
                 sameparent_points = child(temp,:);                                                                     % tworzy tymaczasow¹ macierz dzieci posiadaj¹cych tych samych rodziców                
-                points_withrating = [exploratory_points_rating(sameparent_points(:,1:2), explo_map_occ, startPoint, maxLidarRange) temp]; % macierz punktów w formacie [x y rate child_index]
+                points_withrating = [exploratory_points_rating(sameparent_points(:,1:2), explo_map_occ, realPoses(end, :), maxLidarRange) temp]; % macierz punktów w formacie [x y rate child_index]
                 
                 [target_point, ~, target_num] = best_point(points_withrating(:,1:2), points_withrating(:,3));          % wyznaczenie punktu target
                 child(points_withrating(target_num, 4), :) = [];                                                       % usuniecie z listy dzieci punktu target
@@ -141,8 +142,8 @@ while true
  
     
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
-    start_Location = startPoint;
-    stop_Location = [target_point Angle2Points(startPoint(1,1:2), target_point(1,1:2) )];
+    start_Location = realPoses(end,:);
+    stop_Location = [target_point Angle2Points(realPoses(end,1:2), target_point(1,1:2) )];
     
     last_pose_num  = length(realPoses(:,1));
     
@@ -179,6 +180,9 @@ while true
         %sprawdzenie œcie¿ki, czy zosta³a poprawnie 
         isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses(:,1:2)));
         if isRouteOccupied 
+            %   MOTOR STOP
+            rosmsg.Data = [0 0];
+            send(pub_automap, rosmsg);
             
             % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
             temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
@@ -209,15 +213,20 @@ while true
         % Wyznaczenie prêdkosci
         [v, omega] = controller(realPoses(end,:));
         
+        % WYSLIJ AKTUALNE PREDKOSCI
+        rosmsg.Data = [v omega];
+        send(pub_automap, rosmsg);
+        
+        
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
         distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
         
         % Wyznaczenie okregow filtrujacych
-         middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:));
+        middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:));
          
-           RetryCounter = 0; 
+        RetryCounter = 0; 
     
-    disp("Navigation to point... DONE!");
+        disp("Navigation to point... DONE!");
     end
     
     

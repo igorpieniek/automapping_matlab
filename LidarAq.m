@@ -10,8 +10,8 @@ function  map_out = LidarAq(map, subscriberObj)
 
 if ~isa(map, 'lidarSLAM')
     error("map - objekt lidarSLAM");
-elseif ~isa(subscriberObj, 'Subscriber')
-    error("subscriberObj - objekt Subscriber");
+% elseif ~isa(subscriberObj, 'subscriber')
+%     error("subscriberObj - objekt Subscriber");
 end
 
 while true
