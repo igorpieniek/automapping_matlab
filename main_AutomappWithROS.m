@@ -1,20 +1,11 @@
-% V3 - dzia³aj¹ca, poprawiony powrót do rodzica
-
 clc
 close all
 clear all
 
 %%-------------  PARAMETRY POCZ¥TKOWE  -----------------------------------------
 
-
-RealMap = 'mapa_paint5.png';     % Wczytywana rzeczywista mapa 
-MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
-startPoint = [1 0.5 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
-
 maxLidarRange = 8;               % [m]
-AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
-RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
-
+MapResolution = 50;
 MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Parametry plannera A*
@@ -28,27 +19,20 @@ show_robot_path = true;         % Wyswietlanie przebytej sciezki przez robota
 show_current_target = true;     % Wyswietlanie aktualego punktu uznanego jako cel do ktorego zostaje wyznaczona sciezka
 
 %%----------------- INICJALIZACJA --------------------------------------------------------------
-% Inicjalizacja ukrytej rzeczywistej mapy mapy
-
-grayimage = rgb2gray(imread(RealMap));
-bwimage = grayimage < 128;
-hide_map = occupancyMap(bwimage, MapResolution);
 
 % Inicjacja nowej mapy
-explo_map = occupancyMap( (ones(size(grayimage))).*0.5, MapResolution);
+explo_map = Lidar_Init();
 
-% Inicjalizacja wirtualnego lidaru oraz jego parametrów
-rangefinder = rangeSensor('HorizontalAngle', AngleRangeBoundaries,'RangeNoise', RangeNoise,'Range' , [0 maxLidarRange]);
-numReadings = rangefinder.NumReadings;
+
+% Pierwszy pomiar w punkcie startowym
+Lidar_subscriber = rossubscriber('/scan');
+explo_map = Lidar_Aq(explo_map, Lidar_subscriber);
+[explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
+
+startPoint = [0 0 0 ];
 
 last_pose_num  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
 explo_points=[];    % tablica na punkty eksploracyjne
-all_poses = [];     % tablica wszystkich kolejno osi¹ganych pozycji
-all_poses(end+1,:) = startPoint; % dodanie pierwszego punktu
-
-% Pierwszy pomiar w punkcie startowym
-[ranges, angles] = rangefinder(startPoint, hide_map);
-insertRay(explo_map,  startPoint, ranges, angles,  rangefinder.Range(end));
 
 
 % Inicjalizacja zmiennych potrzebnych w g³ównej pêtli 
@@ -61,12 +45,11 @@ parentTochild_route = [];   % macierz na zapisywanie punktów po ktorych robot mo
 parentTochild_route = [0 startPoint(1,1:2)]; % dodanie pierwszego punktu powrotnego
 RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania trasy
 
-viz = HelperUtils;          % zalaczenie narzedzi do wyœwietlania robota (byc moze do wyrzucenia - teraz korzysta tylko ze znacznika robota)
 
 simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykonywania programu
 
 
-%-------------------- GLÓWNA PÊTLA SYMULACJI---------------------------------------------------------------
+%-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
 figure  
 while true
     %%--------------- Czêœæ algortytmu odpowiadaj¹ca za rozgalezienia -------------
@@ -93,7 +76,7 @@ while true
             if ~isempty(temp)
                 
                 sameparent_points = child(temp,:);                                                                     % tworzy tymaczasow¹ macierz dzieci posiadaj¹cych tych samych rodziców                
-                points_withrating = [exploratory_points_rating(sameparent_points(:,1:2), explo_map, startPoint, maxLidarRange) temp]; % macierz punktów w formacie [x y rate child_index]
+                points_withrating = [exploratory_points_rating(sameparent_points(:,1:2), explo_map_occ, startPoint, maxLidarRange) temp]; % macierz punktów w formacie [x y rate child_index]
                 
                 [target_point, ~, target_num] = best_point(points_withrating(:,1:2), points_withrating(:,3));          % wyznaczenie punktu target
                 child(points_withrating(target_num, 4), :) = [];                                                       % usuniecie z listy dzieci punktu target
@@ -107,15 +90,15 @@ while true
         
     else % flaga o powrocie do punktu rozgalezienia nie zostala podniesiona
         if parentNum == 0                                                   % na pocz¹tku gdy nie ma galezi nadpisywana jest pierwsza linijka
-            parentTochild_route(end,:) =[ 0 all_poses(end,1:2)];
+            parentTochild_route(end,:) =[ 0 realPoses(end,1:2)];
         elseif newParent_flag
-            parentTochild_route(end+1,:) =[ parentNum  all_poses(end,1:2)]; % dopisywany jest kolejny rodzic, ale tylko przy zwiêkszeniu identyfikatora rodzica
+            parentTochild_route(end+1,:) =[ parentNum  realPoses(end,1:2)]; % dopisywany jest kolejny rodzic, ale tylko przy zwiêkszeniu identyfikatora rodzica
             newParent_flag = false;
         end
         
         % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
         explo_points = [];
-        explo_points = exploratory_points2(explo_map, explo_points, last_pose_num, all_poses, middle_Pt, maxLidarRange );
+        explo_points = exploratory_points2(explo_map_occ, explo_points, last_pose_num, realPoses, middle_Pt, maxLidarRange );
         
         % weryfikacja dzieci wzglêdem osiagnietych pozycji
         if ~isempty(child) && ~isempty(middle_Pt)
@@ -148,28 +131,10 @@ while true
         end
     end
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    % Aktualizacja wyswietlania wynikow
-    if ~isempty(child) && show_child_points
-        if exist('child_plot', 'var')
-            delete(child_plot);
-
-        end
-        hold on
-        child_plot = plot(child(:,1),child(:,2), '.b');
-    end
-    if ~isempty(target_point) && show_current_target
-        if exist('target_plot', 'var')
-            delete(target_plot);
-        end
-        hold on
-        target_plot = plot(target_point(1,1), target_point(1,2),'or');
-    end
-    
-    
     % Inicjalizacja planera
     disp("Planner START!");
     vMap = validatorOccupancyMap;
-    temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
+    temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
     inflate(temp_map, 0.01);                                                             % powiêkszenie zajêtych obszarow
     vMap.Map = temp_map;
     planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
@@ -179,11 +144,11 @@ while true
     start_Location = startPoint;
     stop_Location = [target_point Angle2Points(startPoint(1,1:2), target_point(1,1:2) )];
     
-    last_pose_num  = length(all_poses(:,1));
+    last_pose_num  = length(realPoses(:,1));
     
     % Proba wyznaczenia trasy i obsulga b³êdów
     try
-        poses = plannerProcess(planner, start_Location, stop_Location);
+        plannerPoses = plannerProcess(planner, start_Location, stop_Location);
     catch er
         switch er.identifier
             case 'nav:navalgs:astar:OccupiedLocation'
@@ -205,55 +170,24 @@ while true
     
     % Pocz¹tek przemieszczenia pojazdu do zadanego punktu
     disp("Navigation to point...");
-    idx =1;
-    tic
-    while idx <= size(poses,1) && RetryCounter <= MaxNumOfRetry
-        ranges = [];
-        angles = [];
+    
+    goalRadius = 0.2;
+    distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
+    controller = controllerPurePursuit("Waypoints",plannerPoses,"DesiredLinearVelocity",0.5,"MaxAngularVelocity", pi/4, "LookaheadDistance", 0.3);
+    while( distanceToGoal > goalRadius )
         
-        % Kolejne pomiary dla kolejnych pozycji i do³¹czanie ich do mapy
-        [ranges, angles] = rangefinder(poses(idx,:), hide_map);
-        insertRay(explo_map, poses(idx,:), ranges, angles, rangefinder.Range(end));
-        
-        % Zapisanie aktualnej pozycji robota
-        all_poses(end+1,:) = poses(idx,:); % odczytanie ostatniej pozycji i dopisanie jej do tablicy wszystkich pozycji
-        middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:));
-        
-        % Aktualizacja tworzonej mapy 
-        hold on
-        show(explo_map, 'FastUpdate', true);
-        
-        % Aktualiacja znacznika robota
-        hold on
-        if exist('robot_plot', 'var')
-            delete(robot_plot);
-        end
-        robot_plot = viz.plotRobot(gca, all_poses(end,:), 0.5);
-     
-        % Aktualizacja przejechanej sciezki (o ile potrzebna)
-        if idx>1 && show_robot_path
-            if goback_flag
-                hold on
-                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-b');
-            else
-                hold on
-                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-r');
-            end
-        end
-        drawnow
-        
-        % Sprawdzenie czy na wyznaczonej trasie nie pojawi³a siê przeszkoda
-        isRouteOccupied = any(checkOccupancy(explo_map, poses(:,1:2)));
-        if isRouteOccupied && (toc > 0.5)
+        %sprawdzenie œcie¿ki, czy zosta³a poprawnie 
+        isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses(:,1:2)));
+        if isRouteOccupied 
             
             % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
-            temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution);
+            temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
             inflate(temp_map, 0.01);
             planner.StateValidator.Map = temp_map;
             
             % Replanowanie œciezki wraz obs³uga b³êdów 
             try
-                poses = plannerProcess(planner, poses(idx,:), stop_Location);
+                plannerPoses = plannerProcess(planner, plannerPoses(idx,:), stop_Location);
             catch er
                 if er.identifier == 'nav:navalgs:astar:OccupiedLocation'
                     warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
@@ -267,31 +201,38 @@ while true
                     rethrow(er);
                 end
             end
-            
-            idx = 1;
-            tic;
-        else
-            idx = idx + 1;
         end
+        % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji
+        explo_map = Lidar_Aq(explo_map, Lidar_subscriber);
+        [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
+        
+        % Wyznaczenie prêdkosci
+        [v, omega] = controller(realPoses(end,:));
+        
+        % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
+        distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
+        
+        % Wyznaczenie okregow filtrujacych
+        middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:));
+         
+        RetryCounter = 0; 
+    
+        disp("Navigation to point... DONE!");
     end
     
-    RetryCounter = 0; 
     
-    disp("Navigation to point... DONE!");
     
-    startPoint =  poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
+   
+ 
+    
+    startPoint =  plannerPoses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
     
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
 
-show(explo_map);
+show(explo_map_occ);
 %%
 disp("MAPPING DONE");
 figure
-subplot(1,2,1)
-show(hide_map);
-title("Rzeczywista mapa")
-
-subplot(1,2,2)
-show(explo_map);
+show(explo_map_occ);
 title("Ukonczona  mapa po symulacji")

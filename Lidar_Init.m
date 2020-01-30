@@ -1,6 +1,6 @@
 function map = Lidar_Init
 
-maxLidarRange = 6;
+maxLidarRange = 8;
 mapResolution = 70;
 MAX_NumOfScans = 100;
 

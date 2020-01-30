@@ -1,4 +1,4 @@
-fclc
+clc
 close all
 clear
 load lidardata_2.mat map3
@@ -29,7 +29,7 @@ margin = 5 ;% odleg³oœci miedzy liniami aby mozna by³a uznac dana odeleglosc za 
 size_of_checkarea = 0.3;  % promien testowanego obszaru wzgledem testowanego punktu - sprawdzenie czy punkt nie lezy w przeszkodzie
 max_lines_consider = 1; %nr aktualnej lini branej pod uwage (w inicie nr 1)
 
-current_map = map2;
+current_map = maps(1);
 
 %---------------------------------------------------
 [scansSLAM,poses] = scansAndPoses(current_map);
@@ -194,13 +194,13 @@ else
     explo_points_xy = Filter_blocked_points(explo_points_xy, blocked_points, 0.1);
 
     %% Ocena punktów eksploracyjnych
-    explo_points_xy = exploratory_points_rating(explo_points_xy, omap, poses(end,:)); 
-
-    target_num = find(explo_points_xy(:,3) == max(explo_points_xy(:,3)));
-    target_point =  [explo_points_xy(target_num,1:2) , 0];
-
-
-    plot(target_point(:,1),target_point(:,2),'ob') % best point
+%     explo_points_xy = exploratory_points_rating(explo_points_xy, omap, poses(end,:)); 
+% 
+%     target_num = find(explo_points_xy(:,3) == max(explo_points_xy(:,3)));
+%     target_point =  [explo_points_xy(target_num,1:2) , 0];
+% 
+% 
+%     plot(target_point(:,1),target_point(:,2),'ob') % best point
     %----------------wyswietlanie wynikow--------------------------------------
     % if ~isempty(explo_points)
     %     figure
@@ -247,53 +247,53 @@ else
     %% test - oszukanie occupancy map
 
 
-    aa_new_points = [];
-    aa_new_points_xy = [];
-
-     map_height = abs(omap.YWorldLimits(2) - omap.YWorldLimits(1));
-     map_width = abs(omap.XWorldLimits(2) - omap.XWorldLimits(1));
-     MToBin_rate = (length(BinaryMap(:,1))) / map_height;
-
-     aa_new_map = binaryOccupancyMap(map_width ,map_height, MToBin_rate);
-     aa_new_map.LocalOriginInWorld = omap.LocalOriginInWorld;
-     setOccupancy(aa_new_map, BinaryMap)
+%     aa_new_points = [];
+%     aa_new_points_xy = [];
+% 
+%      map_height = abs(omap.YWorldLimits(2) - omap.YWorldLimits(1));
+%      map_width = abs(omap.XWorldLimits(2) - omap.XWorldLimits(1));
+%      MToBin_rate = (length(BinaryMap(:,1))) / map_height;
+% 
+%      aa_new_map = binaryOccupancyMap(map_width ,map_height, MToBin_rate);
+%      aa_new_map.LocalOriginInWorld = omap.LocalOriginInWorld;
+%      setOccupancy(aa_new_map, BinaryMap)
+% %     figure
+% %     show(aa_new_map)
+% 
+%     % Wyznacznie trasy 
+%     disp('Wyznaczanie trasy...')
+%     estMap = aa_new_map;
+%     vMap = validatorOccupancyMap;
+%     vMap.Map = estMap;
+%     planner = plannerHybridAStar(vMap, 'MotionPrimitiveLength', 0.5,...
+%                                    'MinTurningRadius', 0.32 );
+% 
+%     % wyznaczenie najlepszego punktu                           
+%     target_num = find(explo_points_xy(:,3) == max(explo_points_xy(:,3)));
+%     target_point =  [explo_points_xy(target_num,1:2) , 0];
+%     %wyznaczenie ostatniej pozycji
+%     [~, poses] = scansAndPoses(current_map);
+%     last_pose = poses(end,:);
+% 
+%     route = plan(planner, last_pose, target_point);
+%     route = route.States;
+% 
+%     % Get poses from the route.
+%     rsConn = reedsSheppConnection('MinTurningRadius', planner.MinTurningRadius);
+%     startPoses = route(1:end-1,:);
+%     endPoses = route(2:end,:);
+% 
+%     rsPathSegs = connect(rsConn, startPoses, endPoses);
+% %     poses = [];
+% %     for i = 1:numel(rsPathSegs)
+% %         lengths = 0:0.1:rsPathSegs{i}.Length;
+% %         [pose, ~] = interpolate(rsPathSegs{i}, lengths);
+% %         poses = [poses; pose];
+% %     end
+% 
 %     figure
-%     show(aa_new_map)
-
-    % Wyznacznie trasy 
-    disp('Wyznaczanie trasy...')
-    estMap = aa_new_map;
-    vMap = validatorOccupancyMap;
-    vMap.Map = estMap;
-    planner = plannerHybridAStar(vMap, 'MotionPrimitiveLength', 0.5,...
-                                   'MinTurningRadius', 0.32 );
-
-    % wyznaczenie najlepszego punktu                           
-    target_num = find(explo_points_xy(:,3) == max(explo_points_xy(:,3)));
-    target_point =  [explo_points_xy(target_num,1:2) , 0];
-    %wyznaczenie ostatniej pozycji
-    [~, poses] = scansAndPoses(current_map);
-    last_pose = poses(end,:);
-
-    route = plan(planner, last_pose, target_point);
-    route = route.States;
-
-    % Get poses from the route.
-    rsConn = reedsSheppConnection('MinTurningRadius', planner.MinTurningRadius);
-    startPoses = route(1:end-1,:);
-    endPoses = route(2:end,:);
-
-    rsPathSegs = connect(rsConn, startPoses, endPoses);
-%     poses = [];
-%     for i = 1:numel(rsPathSegs)
-%         lengths = 0:0.1:rsPathSegs{i}.Length;
-%         [pose, ~] = interpolate(rsPathSegs{i}, lengths);
-%         poses = [poses; pose];
-%     end
-
-    figure
-    show(planner)
-    title('Initial Route to Package')
+%     show(planner)
+%     title('Initial Route to Package')
 end
 
 
