@@ -139,8 +139,11 @@ while true
     disp("Planner START!");
     ss = stateSpaceSE2;
     vMap = validatorOccupancyMap(ss);
+
+    
     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
-% % inflate(temp_map, 0.01);                                                             % powiêkszenie zajêtych obszarow
+    temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
+    inflate(temp_map, 0.01);                                                             % powiêkszenie zajêtych obszarow
     vMap.Map = temp_map;
     vMap.ValidationDistance = 0.01;
  
@@ -150,7 +153,7 @@ while true
     planner.ContinueAfterGoalReached = true;
     
     planner.MaxIterations = 2500;
-    planner.MaxConnectionDistance = 0.1;
+%     planner.MaxConnectionDistance = 0.1;
     
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
     start_Location = realPoses(end,:);
@@ -186,10 +189,11 @@ while true
     
     goalRadius = 0.2;
     distanceToGoal = norm(realPoses(end,1:2) - plannerPoses.States(end, 1:2));
-    controller = controllerPurePursuit("Waypoints",plannerPoses.States,"DesiredLinearVelocity",0.5,"MaxAngularVelocity", pi/4, "LookaheadDistance", 0.3);
+    controller = controllerPurePursuit("Waypoints",plannerPoses.States(:,1:2),"DesiredLinearVelocity",0.5,"MaxAngularVelocity", pi/4, "LookaheadDistance", 0.3);
     while( distanceToGoal > goalRadius )
         
         %sprawdzenie œcie¿ki, czy zosta³a poprawnie 
+        navTimeProcess = tic;
         isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses.States(:,1:2)));
         if isRouteOccupied 
             %   MOTOR STOP
@@ -198,28 +202,31 @@ while true
             
             % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
             temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
+            temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
             inflate(temp_map, 0.01);
             planner.StateValidator.Map = temp_map;
             
             % Replanowanie œciezki wraz obs³uga b³êdów 
             try
-                plannerPoses = plannerProcess(planner, plannerPoses(idx,:), stop_Location);
+%                 plannerPoses = plannerProcess(planner, plannerPoses(idx,:), stop_Location);
+                 [plannerPoses, ~] = plan(planner,start_Location,stop_Location);
             catch er
-                if er.identifier == 'nav:navalgs:astar:OccupiedLocation'
-                    warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
-                    RetryCounter = RetryCounter +1 ;
-                    continue;
-                elseif er.identifier ==   'nav:navalgs:hybridastar:StartError'
-                    warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
-                     RetryCounter = RetryCounter +1 ;
-                    continue;
-                else
-                    rethrow(er);
+                switch er.identifier
+                    case'nav:navalgs:astar:OccupiedLocation'
+                        warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
+                        RetryCounter = RetryCounter +1 ;
+                        continue;
+                    case 'nav:navalgs:hybridastar:StartError'
+                        warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
+                        RetryCounter = RetryCounter +1 ;
+                        continue;
+                    otherwise
+                        rethrow(er);
                 end
             end
         end
         % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji
-        explo_map = Lidar_Aq(explo_map, Lidar_subscriber);
+        explo_map = LidarAq(explo_map, Lidar_subscriber);
         [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
         
         % Wyznaczenie prêdkosci
@@ -231,22 +238,18 @@ while true
         
         
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
-        distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
+        distanceToGoal = norm(realPoses(end,1:2) - plannerPoses.States(end, 1:2));
         
         % Wyznaczenie okregow filtrujacych
         middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:));
          
         RetryCounter = 0; 
     
-        disp("Navigation to point... DONE!");
+        
     end
+    disp("Navigation to point... DONE!");
     
-    
-    
-   
- 
-    
-    startPoint =  plannerPoses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
+    startPoint =  plannerPoses.States(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
     
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji

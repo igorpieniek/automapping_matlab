@@ -101,8 +101,9 @@ while true
         
         % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
         explo_points = [];
+        disp("Exploratory points search START!");
         explo_points = exploratory_points2(explo_map_occ, explo_points, last_pose_num, realPoses, middle_Pt, maxLidarRange );
-        
+        disp("Exploratory points search DONE!");
         % weryfikacja dzieci wzglêdem osiagnietych pozycji
         if ~isempty(child) && ~isempty(middle_Pt)
             child = verify_PointsToPosses(child, middle_Pt);
@@ -136,14 +137,23 @@ while true
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     % Inicjalizacja planera
     disp("Planner START!");
-    vMap = validatorOccupancyMap;
+    ss = stateSpaceSE2;
+    vMap = validatorOccupancyMap(ss);
+
+    
     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
+    temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
     inflate(temp_map, 0.01);                                                             % powiêkszenie zajêtych obszarow
     vMap.Map = temp_map;
     vMap.ValidationDistance = 0.01;
-    ss = stateSpaceSE2;
-    planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
  
+    ss.StateBounds = [temp_map.XWorldLimits; temp_map.YWorldLimits; [-pi pi]];
+    %     planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
+    planner = plannerRRTStar(ss,vMap);
+    planner.ContinueAfterGoalReached = true;
+    
+    planner.MaxIterations = 2500;
+%     planner.MaxConnectionDistance = 0.1;
     
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
     start_Location = realPoses(end,:);
@@ -153,7 +163,8 @@ while true
     
     % Proba wyznaczenia trasy i obsulga b³êdów
     try
-        plannerPoses = plannerProcess(planner, start_Location, stop_Location);
+%         plannerPoses = plannerProcess(planner, start_Location, stop_Location);
+        [plannerPoses, ~] = plan(planner,start_Location,stop_Location);
     catch er
         switch er.identifier
             case 'nav:navalgs:astar:OccupiedLocation'
@@ -177,12 +188,13 @@ while true
     disp("Navigation to point...");
     
     goalRadius = 0.2;
-    distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
-    controller = controllerPurePursuit("Waypoints",plannerPoses,"DesiredLinearVelocity",0.5,"MaxAngularVelocity", pi/4, "LookaheadDistance", 0.3);
+    distanceToGoal = norm(realPoses(end,1:2) - plannerPoses.States(end, 1:2));
+    controller = controllerPurePursuit("Waypoints",plannerPoses.States(:,1:2),"DesiredLinearVelocity",0.5,"MaxAngularVelocity", pi/4, "LookaheadDistance", 0.3);
     while( distanceToGoal > goalRadius )
         
         %sprawdzenie œcie¿ki, czy zosta³a poprawnie 
-        isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses(:,1:2)));
+        navTimeProcess = tic;
+        isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses.States(:,1:2)));
         if isRouteOccupied 
             %   MOTOR STOP
             rosmsg.Data = [0 0];
@@ -190,23 +202,26 @@ while true
             
             % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
             temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
+            temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
             inflate(temp_map, 0.01);
             planner.StateValidator.Map = temp_map;
             
             % Replanowanie œciezki wraz obs³uga b³êdów 
             try
-                plannerPoses = plannerProcess(planner, plannerPoses(idx,:), stop_Location);
+%                 plannerPoses = plannerProcess(planner, plannerPoses(idx,:), stop_Location);
+                 [plannerPoses, ~] = plan(planner,start_Location,stop_Location);
             catch er
-                if er.identifier == 'nav:navalgs:astar:OccupiedLocation'
-                    warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
-                    RetryCounter = RetryCounter +1 ;
-                    continue;
-                elseif er.identifier ==   'nav:navalgs:hybridastar:StartError'
-                    warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
-                     RetryCounter = RetryCounter +1 ;
-                    continue;
-                else
-                    rethrow(er);
+                switch er.identifier
+                    case'nav:navalgs:astar:OccupiedLocation'
+                        warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
+                        RetryCounter = RetryCounter +1 ;
+                        continue;
+                    case 'nav:navalgs:hybridastar:StartError'
+                        warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
+                        RetryCounter = RetryCounter +1 ;
+                        continue;
+                    otherwise
+                        rethrow(er);
                 end
             end
         end
@@ -230,13 +245,9 @@ while true
          
         RetryCounter = 0; 
     
-        disp("Navigation to point... DONE!");
+        
     end
-    
-    
-    
-   
- 
+    disp("Navigation to point... DONE!");
     
     startPoint =  plannerPoses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
     
