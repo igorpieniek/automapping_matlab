@@ -185,7 +185,7 @@ while true
             end
         end
     % PLANNER RRT*    
-    elseif plannerType == 'RRT*' %TODO
+    elseif plannerType == 'RRT*' 
         ss = stateSpaceSE2;
         
         vMap = validatorOccupancyMap(ss);

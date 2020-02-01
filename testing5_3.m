@@ -187,13 +187,13 @@ while true
     catch er
         switch er.identifier
             case 'nav:navalgs:astar:OccupiedLocation'
-                warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
+                warning('Droga nie moze zostac wyznaczona! OccupiedLocation');
                 continue;
             case 'nav:navalgs:hybridastar:StartError'
-                warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
+                warning('Droga nie moze zostac wyznaczona! StartError');
                 continue;
             case 'nav:navalgs:hybridastar:GoalError'
-                warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
+                warning('Droga nie moze zostac wyznaczona! GoalError');
                  continue;
             otherwise
                 rethrow(er);
@@ -256,11 +256,11 @@ while true
                 poses = plannerProcess(planner, poses(idx,:), stop_Location);
             catch er
                 if er.identifier == 'nav:navalgs:astar:OccupiedLocation'
-                    warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
+                    warning('Droga nie moze zostac wyznaczona!OccupiedLocation');
                     RetryCounter = RetryCounter +1 ;
                     continue;
                 elseif er.identifier ==   'nav:navalgs:hybridastar:StartError'
-                    warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
+                    warning('Droga nie moze zostac wyznaczona! StartError');
                      RetryCounter = RetryCounter +1 ;
                     continue;
                 else
