@@ -320,7 +320,7 @@ while true
                     [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
                     poses = plannerPosesObj.States;
                 catch er
-                    warning(["RRT* nie moze wyznaczyc trasy, powod : ", er.identifier]);
+                    warning("RRT* nie moze wyznaczyc trasy, powod : ");
                     continue;
                     
                     %dodac obsluge bledu jesli bedzie wystepowac
@@ -337,7 +337,7 @@ while true
     
     disp("Navigation to point... DONE!");
     
-    startPoint =  poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
+    startPoint =  all_poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
     
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
