@@ -326,6 +326,8 @@ while true
                     %dodac obsluge bledu jesli bedzie wystepowac
                 end
             end
+            idx = 1;
+            tic;
         else
             idx = idx + 1;
         end
