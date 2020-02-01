@@ -17,10 +17,20 @@ RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
 
 MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
+% Wybor rodzaju plannera
+plannerType = "RRT*"; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
+
 % Parametry plannera A*
 MinTurningRadius = 0.1;         % Minimalny promien zawracania
 MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
+   
+   %Parametry plannera RRT*
+validationDistance = 0.2;
+maxIterations = 2500;
+maxConnectionDistance = 0.1;
+goalRadius = 0.1;
+
 
 % Wyniki
 show_child_points = true;       % Aktualne przedstawienie wszystkich punktów rozgalezien
@@ -165,42 +175,69 @@ while true
         target_plot = plot(target_point(1,1), target_point(1,2),'or');
     end
     
-    
-    % Inicjalizacja planera
-    disp("Planner START!");
-    vMap = validatorOccupancyMap;
-    temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
-    inflate(temp_map, 0.01);                                                             % powiêkszenie zajêtych obszarow
-    vMap.Map = temp_map;
-    planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
- 
-    
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
     start_Location = startPoint;
     stop_Location = [target_point Angle2Points(startPoint(1,1:2), target_point(1,1:2) )];
     
     last_pose_num  = length(all_poses(:,1));
     
-    % Proba wyznaczenia trasy i obsulga b³êdów
-    try
-        poses = plannerProcess(planner, start_Location, stop_Location);
-    catch er
-        switch er.identifier
-            case 'nav:navalgs:astar:OccupiedLocation'
-                warning('Droga nie moze zostac wyznaczona! OccupiedLocation');
-                continue;
-            case 'nav:navalgs:hybridastar:StartError'
-                warning('Droga nie moze zostac wyznaczona! StartError');
-                continue;
-            case 'nav:navalgs:hybridastar:GoalError'
-                warning('Droga nie moze zostac wyznaczona! GoalError');
-                 continue;
-            otherwise
-                rethrow(er);
-        end
-    end
+    % Inicjalizacja planera
+    disp("Planner START!");
+    temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
+    temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
+    inflate(temp_map, 0.01);
     
-    disp("Planner DONE!");
+    % PLANNER A*
+    if plannerType == "A*"
+        vMap = validatorOccupancyMap;
+        vMap.Map = temp_map;
+        planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
+        
+        try
+            poses = plannerProcess(planner, start_Location, stop_Location);
+        catch er
+            switch er.identifier
+                case 'nav:navalgs:astar:OccupiedLocation'
+                    warning('Droga nie moze zostac wyznaczona! Powod : OccupiedLocation');
+                    continue;
+                case 'nav:navalgs:hybridastar:StartError'
+                    warning('Droga nie moze zostac wyznaczona! (planer A* error)  : StartError');
+                    continue;
+                case 'nav:navalgs:hybridastar:GoalError'
+                    warning('Droga nie moze zostac wyznaczona! (planer A* error)  : GoalError');
+                    continue;
+                otherwise
+                    rethrow(er);
+            end
+        end
+    % PLANNER RRT*    
+    elseif plannerType == "RRT*" 
+        ss = stateSpaceSE2;
+        
+        vMap = validatorOccupancyMap(ss);
+        vMap.Map = temp_map;
+        vMap.ValidationDistance = validationDistance;
+        
+        ss.StateBounds = [temp_map.XWorldLimits; temp_map.YWorldLimits; [-pi pi]];
+        
+        planner = plannerRRTStar(ss,vMap);
+        planner.ContinueAfterGoalReached = true;
+        planner.MaxIterations = maxIterations;
+        planner.MaxConnectionDistance = maxConnectionDistance;
+        
+        try
+        [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
+        poses = plannerPosesObj.States;
+        catch er
+            warning(["RRT* nie moze wyznaczyc trasy, powod : ", er.identifier]);
+            continue;
+            
+            %dodac obsluge bledu jesli bedzie wystepowac
+            
+        end
+    else
+        error("Nieodpowiednia nazwa plannera- tylko RRT* lub A*");
+    end
     
     
     % Pocz¹tek przemieszczenia pojazdu do zadanego punktu
@@ -251,25 +288,44 @@ while true
             inflate(temp_map, 0.01);
             planner.StateValidator.Map = temp_map;
             
-            % Replanowanie œciezki wraz obs³uga b³êdów 
-            try
-                poses = plannerProcess(planner, poses(idx,:), stop_Location);
-            catch er
-                if er.identifier == 'nav:navalgs:astar:OccupiedLocation'
-                    warning('Droga nie moze zostac wyznaczona!OccupiedLocation');
-                    RetryCounter = RetryCounter +1 ;
+            % Replanowanie œciezki wraz obs³uga b³êdów
+            % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
+            temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution);
+            temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
+            inflate(temp_map, 0.01);
+            planner.StateValidator.Map = temp_map;
+            
+            % Replanowanie œciezki wraz obs³uga b³êdów
+            
+            if plannerType == "A*"
+                try
+                    poses = plannerProcess(planner, poses(idx,:), stop_Location);
+                catch er
+                    switch er.identifier
+                        case'nav:navalgs:astar:OccupiedLocation'
+                            warning('Droga nie moze zostac wyznaczona! OccupiedLocation');
+                            RetryCounter = RetryCounter +1 ;
+                            continue;
+                        case 'nav:navalgs:hybridastar:StartError'
+                            warning('Droga nie moze zostac wyznaczona! StartError');
+                            RetryCounter = RetryCounter +1 ;
+                            continue;
+                        otherwise
+                            rethrow(er);
+                    end
+                end
+                
+            elseif  plannerType == "RRT*"
+                try
+                    [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
+                    poses = plannerPosesObj.States;
+                catch er
+                    warning(["RRT* nie moze wyznaczyc trasy, powod : ", er.identifier]);
                     continue;
-                elseif er.identifier ==   'nav:navalgs:hybridastar:StartError'
-                    warning('Droga nie moze zostac wyznaczona! StartError');
-                     RetryCounter = RetryCounter +1 ;
-                    continue;
-                else
-                    rethrow(er);
+                    
+                    %dodac obsluge bledu jesli bedzie wystepowac
                 end
             end
-            
-            idx = 1;
-            tic;
         else
             idx = idx + 1;
         end
