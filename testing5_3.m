@@ -18,11 +18,11 @@ RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
 MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Wybor rodzaju plannera
-plannerType = "RRT*"; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
+plannerType = "A*"; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
 
 % Parametry plannera A*
-MinTurningRadius = 0.1;         % Minimalny promien zawracania
-MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
+MinTurningRadius = 0.3;         % Minimalny promien zawracania
+MotionPrimitiveLength = 0.3;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
    
    %Parametry plannera RRT*
