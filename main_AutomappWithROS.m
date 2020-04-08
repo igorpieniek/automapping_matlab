@@ -26,9 +26,9 @@ goalRadius = 0.05;
 % ROS Node init
 node_automap = ros.Node('/matlab_automap');
 pub_automap = ros.Publisher(node_automap, '/matlab_velocity', 'std_msgs/Float32MultiArray');
-rosmsg = rosmessage('std_msgs/Float32MultiArray');
-rosmsg.Data = [0 0];
-send(pub_automap, rosmsg);
+rosmsg = rosmessage('geometry_msgs/Vector3Stamped');
+pathIndex = 0;
+
 %%----------------- INICJALIZACJA --------------------------------------------------------------
 
 % Inicjacja nowej mapy
@@ -216,68 +216,60 @@ while true
     
     % Pocz¹tek przemieszczenia pojazdu do zadanego punktu
     disp("Navigation to point...");
-    
+    sendPath(plannerPoses,pub_automap, rosmsg, pathIndex) % przesy³anie danych
 
     distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
-    controller = controllerPurePursuit("Waypoints",plannerPoses(:,1:2),"DesiredLinearVelocity",0.5,"MaxAngularVelocity", pi/4, "LookaheadDistance", 0.3);
     while( distanceToGoal > goalRadius )
         
-        %sprawdzenie œcie¿ki, czy zosta³a poprawnie 
-        navTimeProcess = tic;
-        isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses(:,1:2)));
-        if isRouteOccupied 
-            %   MOTOR STOP
-            rosmsg.Data = [0 0];
-            send(pub_automap, rosmsg);
-            
-            % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
-            temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
-            temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
-            inflate(temp_map, 0.01);
-            planner.StateValidator.Map = temp_map;
-            
-            % Replanowanie œciezki wraz obs³uga b³êdów
-            
-            if plannerType == 'A*'
-                try
-                    plannerPoses = plannerProcess(planner, plannerPoses(idx,:), stop_Location);
-                catch er
-                    switch er.identifier
-                        case'nav:navalgs:astar:OccupiedLocation'
-                            warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
-                            RetryCounter = RetryCounter +1 ;
-                            continue;
-                        case 'nav:navalgs:hybridastar:StartError'
-                            warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
-                            RetryCounter = RetryCounter +1 ;
-                            continue;
-                        otherwise
-                            rethrow(er);
-                    end
-                end
-                
-            elseif  plannerType == 'RRT*'
-                try
-                    [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
-                    plannerPoses = plannerPosesObj.States;
-                catch er
-                    warning(["RRT* nie moze wyznaczyc trasy, powod : ", er.identifier]);
-                    continue;
-                    
-                    %dodac obsluge bledu jesli bedzie wystepowac              
-                end
-            end   
-        end
+% % odkomentowac gdy trzeba wymagane replanowanie sciezki
+%         isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses(:,1:2)));
+%         if isRouteOccupied 
+%             %   MOTOR STOP
+%             rosmsg.Data = [0 0];
+%             send(pub_automap, rosmsg);
+%             
+%             % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
+%             temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
+%             temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
+%             inflate(temp_map, 0.01);
+%             planner.StateValidator.Map = temp_map;
+%             
+%             % Replanowanie œciezki wraz obs³uga b³êdów
+%             
+%             if plannerType == 'A*'
+%                 try
+%                     plannerPoses = plannerProcess(planner, plannerPoses(idx,:), stop_Location);
+%                 catch er
+%                     switch er.identifier
+%                         case'nav:navalgs:astar:OccupiedLocation'
+%                             warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
+%                             RetryCounter = RetryCounter +1 ;
+%                             continue;
+%                         case 'nav:navalgs:hybridastar:StartError'
+%                             warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
+%                             RetryCounter = RetryCounter +1 ;
+%                             continue;
+%                         otherwise
+%                             rethrow(er);
+%                     end
+%                 end
+%                 
+%             elseif  plannerType == 'RRT*'
+%                 try
+%                     [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
+%                     plannerPoses = plannerPosesObj.States;
+%                 catch er
+%                     warning(["RRT* nie moze wyznaczyc trasy, powod : ", er.identifier]);
+%                     continue;
+%                     
+%                     %dodac obsluge bledu jesli bedzie wystepowac              
+%                 end
+%             end   
+%         end
         % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji
         explo_map = LidarAq(explo_map, Lidar_subscriber);
         [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
         
-        % Wyznaczenie prêdkosci
-        [v, omega] = controller(realPoses(end,:));
-        
-        % WYSLIJ AKTUALNE PREDKOSCI
-        rosmsg.Data = [v omega];
-        send(pub_automap, rosmsg);
         
         
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
