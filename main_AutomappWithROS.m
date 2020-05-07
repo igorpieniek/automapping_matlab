@@ -5,27 +5,27 @@ clear all
 %%-------------  PARAMETRY POCZ¥TKOWE  -----------------------------------------
 
 maxLidarRange = 8;               % [m]
-MapResolution = 50;
+MapResolution = 40;
 MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Wybor rodzaju plannera
 plannerType = 'A*'; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
 
 % Parametry plannera A*
-MinTurningRadius = 0.1;         % Minimalny promien zawracania
-MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
+MinTurningRadius = 0.05;         % Minimalny promien zawracania
+MotionPrimitiveLength = 0.05;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
    
 %Parametry plannera RRT*
 validationDistance = 0.01;
 maxIterations = 2500;
 maxConnectionDistance = 0.1;
-goalRadius = 0.05;
+goalRadius = 0.5;
 
 
 % ROS Node init
 node_automap = ros.Node('/matlab_automap');
-pub_automap = ros.Publisher(node_automap, '/matlab_velocity', 'std_msgs/Float32MultiArray');
+pub_automap = ros.Publisher(node_automap, '/matlab_velocity', 'geometry_msgs/Vector3Stamped');
 rosmsg = rosmessage('geometry_msgs/Vector3Stamped');
 pathIndex = 0;
 
@@ -63,7 +63,7 @@ simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykony
 
 
 %-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
-
+figure
 while true
     %%--------------- Czêœæ algortytmu odpowiadaj¹ca za rozgalezienia -------------
     
@@ -216,6 +216,12 @@ while true
     
     % Pocz¹tek przemieszczenia pojazdu do zadanego punktu
     disp("Navigation to point...");
+    hold on
+    show(explo_map_occ);
+    hold on 
+    plot(plannerPoses(:,1), plannerPoses(:,2), '-b');
+    
+    sendPath([],pub_automap, rosmsg, pathIndex) % przesy³anie danych
     sendPath(plannerPoses,pub_automap, rosmsg, pathIndex) % przesy³anie danych
 
     distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
