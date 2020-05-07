@@ -14,10 +14,12 @@ if ~isa(map, 'lidarSLAM')
 %     error("subscriberObj - objekt Subscriber");
 end
 
+angleOffset = -pi/2;
+
 while true
     scandata_raw = receive(subscriberObj,10);
     
-    angles =((scandata_raw.AngleMin):(scandata_raw.AngleIncrement):(scandata_raw.AngleMax))';
+    angles =((scandata_raw.AngleMin + angleOffset):(scandata_raw.AngleIncrement):(scandata_raw.AngleMax + angleOffset))';
 
     ranges = scandata_raw.Ranges;
 
