@@ -12,15 +12,18 @@ MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dl
 plannerType = 'A*'; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
 
 % Parametry plannera A*
-MinTurningRadius = 0.05;         % Minimalny promien zawracania
-MotionPrimitiveLength = 0.05;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
+MinTurningRadius = 0.1;         % Minimalny promien zawracania
+MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
    
 %Parametry plannera RRT*
 validationDistance = 0.01;
 maxIterations = 2500;
 maxConnectionDistance = 0.1;
-goalRadius = 0.5;
+
+goalRadius = 0.3;
+robotRadiusOrg = 0.25;
+robotRadiusTemp = robotRadiusOrg;
 
 
 % ROS Node init
@@ -39,7 +42,6 @@ explo_map = Lidar_Init();
 Lidar_subscriber = rossubscriber('/scan');
 explo_map = LidarAq(explo_map, Lidar_subscriber);
 [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
-
 
 
 last_pose_num  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
@@ -147,8 +149,13 @@ while true
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
     
+    explo_map = LidarAq(explo_map, Lidar_subscriber);
+    [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);   
+    
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
-    start_Location = realPoses(end,:);
+   
+    %start_Location = [realPoses(end,1:2), realPoses(end,3)+pi/2] ;
+    start_Location = [realPoses(end,1:2), Angle2Points(realPoses(end,1:2), target_point(1,1:2))] ;
     stop_Location = [target_point Angle2Points(realPoses(end,1:2), target_point(1,1:2) )];
     
     last_pose_num  = length(realPoses(:,1));
@@ -159,7 +166,7 @@ while true
     
     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
     temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
-    inflate(temp_map, 0.01);
+    inflate(temp_map, robotRadiusTemp);
     
     % PLANNER A*
     if plannerType == 'A*'
@@ -173,17 +180,31 @@ while true
             switch er.identifier
                 case 'nav:navalgs:astar:OccupiedLocation'
                     warning('Droga nie moze zostac wyznaczona! Powod : OccupiedLocation');
+                    if robotRadiusTemp <=0.06
+                        break
+                    end
+                    robotRadiusTemp = robotRadiusTemp - 0.03;
                     continue;
                 case 'nav:navalgs:hybridastar:StartError'
                     warning('Droga nie moze zostac wyznaczona! (planer A* error)  : StartError');
+                    if robotRadiusTemp <=0.06
+                        break
+                    end
+                    robotRadiusTemp = robotRadiusTemp - 0.03;
                     continue;
                 case 'nav:navalgs:hybridastar:GoalError'
                     warning('Droga nie moze zostac wyznaczona! (planer A* error)  : GoalError');
+                    if robotRadiusTemp <=0.06
+                        break
+                    end
+                    robotRadiusTemp = robotRadiusTemp - 0.03;
                     continue;
                 otherwise
                     rethrow(er);
             end
         end
+        % gdy œciezka zostanie wyznaczona:
+        robotRadiusTemp = robotRadiusOrg;
     % PLANNER RRT*    
     elseif plannerType == 'RRT*' 
         ss = stateSpaceSE2;
@@ -219,12 +240,15 @@ while true
     hold on
     show(explo_map_occ);
     hold on 
-    plot(plannerPoses(:,1), plannerPoses(:,2), '-b');
+    plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
+    
+    plannerPoses = [ [realPoses(end,1:2), realPoses(end,3)+pi/2] ; plannerPoses]; % dadanie aktualnej pozycji i orientacji
     
     sendPath([],pub_automap, rosmsg, pathIndex) % przesy³anie danych
     sendPath(plannerPoses,pub_automap, rosmsg, pathIndex) % przesy³anie danych
-
+ 
     distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
+
     while( distanceToGoal > goalRadius )
         
 % % odkomentowac gdy trzeba wymagane replanowanie sciezki
@@ -280,7 +304,8 @@ while true
         
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
         distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
-        
+        disp('NEXT MEASURMENT')
+        disp(num2str(distanceToGoal))
         % Wyznaczenie okregow filtrujacych
         middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:));
          
@@ -288,6 +313,7 @@ while true
     
         
     end
+    sendPath([],pub_automap, rosmsg, pathIndex) % stop motors
     disp("Navigation to point... DONE!");
     
     startPoint =  plannerPoses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
