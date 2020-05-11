@@ -18,7 +18,7 @@ RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
 MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Wybor rodzaju plannera
-plannerType = "A*"; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
+plannerType = "A*  "; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
 
 % Parametry plannera A*
 MinTurningRadius = 0.3;         % Minimalny promien zawracania
@@ -185,10 +185,10 @@ while true
     disp("Planner START!");
     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
     temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
-    inflate(temp_map, 0.01);
+    inflate(temp_map, 0.2);
     
     % PLANNER A*
-    if plannerType == "A*"
+    if plannerType == "HA* "
         vMap = validatorOccupancyMap;
         vMap.Map = temp_map;
         planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
@@ -235,6 +235,49 @@ while true
             %dodac obsluge bledu jesli bedzie wystepowac
             
         end
+    elseif plannerType == "A*  " 
+        start_local = local2grid(temp_map, start_Location(end,1:2));
+        stop_local = local2grid(temp_map, stop_Location(end,1:2));
+        temp_map_local =  imbinarize( occupancyMatrix(temp_map), 0.51) ;
+        map_size = size(temp_map_local);
+        goalReg = int8(zeros(map_size(1), map_size(2)));
+        goalReg(stop_local(1), stop_local(2)) = 1;
+        %path_local = ASTARPATH(start_local(2),start_local(1), temp_map_local, goalReg,5 );
+        load NeighboorsTable2 NeighboorsTable
+        Neighboors=NeighboorsTable{10};
+        try
+            path_local = ASTARPATH2SIDED(start_local(2),start_local(1), temp_map_local, stop_local(2), stop_local(1),10 ,Neighboors );
+        catch er
+            warning(['A* ma problem z wyznaczeniem punktu: ', er.identifier])
+            continue
+        end
+         %         figure
+%         imshow(temp_map_local)
+%         hold on
+%         plot(path_local(1,2),path_local(1,1),'o','color','k')
+%         plot(stop_local(end,2),stop_local(end,1),'o','color','b')
+%         plot(path_local(:,2),path_local(:,1),'.r')
+%         legend('Goal','Start','Path')
+        poses = [];
+        tempposes=[];
+        for i = 1:length(path_local(:,1))
+            globPoses = grid2world(temp_map, path_local(i,:));
+            tempposes = [tempposes; globPoses];
+        end
+        for i = 1: length(path_local(:,1))-1
+            angle = Angle2Points( tempposes(i,:),  tempposes(i+1,:));
+            if i == 1
+                prevAngle = angle;
+            end         
+            if abs(prevAngle-angle)>pi/2
+                angle = prevAngle;
+            end
+            prevAngle = angle;
+            poses = [poses; tempposes(i,:), angle];
+        end 
+        poses = [poses; tempposes(end,:), poses(end,3)];
+        
+        
     else
         error("Nieodpowiednia nazwa plannera- tylko RRT* lub A*");
     end
@@ -271,10 +314,10 @@ while true
         if idx>1 && show_robot_path
             if goback_flag
                 hold on
-                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-b');
+                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '.b');
             else
                 hold on
-                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-r');
+                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '.r');
             end
         end
         drawnow
