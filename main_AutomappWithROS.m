@@ -6,10 +6,10 @@ clear all
 
 maxLidarRange = 8;               % [m]
 MapResolution = 40;
-MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
+MaxNumOfRetry = 4;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Wybor rodzaju plannera
-plannerType = 'A*'; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
+plannerType = 'A* '; %do wyboru 'A*'(HybridA*) lub RRT(HybridRRT*)
 
 % Parametry plannera A*
 MinTurningRadius = 0.1;         % Minimalny promien zawracania
@@ -169,7 +169,7 @@ while true
     inflate(temp_map, robotRadiusTemp);
     
     % PLANNER A*
-    if plannerType == 'A*'
+    if plannerType == 'HA*'
         vMap = validatorOccupancyMap;
         vMap.Map = temp_map;
         planner = plannerHybridAStar(vMap, 'MinTurningRadius', MinTurningRadius, 'MotionPrimitiveLength',MotionPrimitiveLength); % stworzenie obiektu planner
@@ -206,7 +206,7 @@ while true
         % gdy œciezka zostanie wyznaczona:
         robotRadiusTemp = robotRadiusOrg;
     % PLANNER RRT*    
-    elseif plannerType == 'RRT*' 
+    elseif plannerType == 'RRT' 
         ss = stateSpaceSE2;
         
         vMap = validatorOccupancyMap(ss);
@@ -230,10 +230,19 @@ while true
             %dodac obsluge bledu jesli bedzie wystepowac
             
         end
+    elseif plannerType == 'A* '
+        
+        
+        plannerPoses = ASTARPATH( start_Location(end,1), start_Location(end,2), )
     end
     
     disp("Planner DONE!");
     
+    if plannerPoses(end,1)==stop_Location(end,1) && plannerPoses(end,1)==stop_Location(end,1)
+        plannerPoses = [ [realPoses(end,1:2), realPoses(end,3)+pi/2] ; plannerPoses];
+    else
+         plannerPoses = [ [realPoses(end,1:2), realPoses(end,3)+pi/2] ; plannerPoses; [stop_Location(end,1:2), Angle2Points(plannerPoses(end,1:2),stop_Location(end,1:2))] ]; % dadanie aktualnej pozycji i orientacji
+    end
     
     % Pocz¹tek przemieszczenia pojazdu do zadanego punktu
     disp("Navigation to point...");
@@ -241,13 +250,16 @@ while true
     show(explo_map_occ);
     hold on 
     plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
-    
-    plannerPoses = [ [realPoses(end,1:2), realPoses(end,3)+pi/2] ; plannerPoses]; % dadanie aktualnej pozycji i orientacji
+    hold on
+    plot(stop_Location(:,1), stop_Location(:,2), 'sb')
     
     sendPath([],pub_automap, rosmsg, pathIndex) % przesy³anie danych
-    sendPath(plannerPoses,pub_automap, rosmsg, pathIndex) % przesy³anie danych
+    sendPath(plannerPoses ,pub_automap, rosmsg, pathIndex) % przesy³anie danych
  
     distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
+    
+    lastDistanceToGoal = distanceToGoal;
+    RetryCounter = 0;
 
     while( distanceToGoal > goalRadius )
         
@@ -302,14 +314,28 @@ while true
         
         
         
+        
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
         distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
+        
         disp('NEXT MEASURMENT')
         disp(num2str(distanceToGoal))
+        
+        if distanceToGoal < lastDistanceToGoal + 0.02 && distanceToGoal > lastDistanceToGoal - 0.02
+            RetryCounter = RetryCounter+1;
+            if RetryCounter >= MaxNumOfRetry
+                break
+            end
+        else 
+            RetryCounter = 0;
+        end
+        
+        lastDistanceToGoal = distanceToGoal;
+        
         % Wyznaczenie okregow filtrujacych
         middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:));
          
-        RetryCounter = 0; 
+        %RetryCounter = 0; 
     
         
     end
