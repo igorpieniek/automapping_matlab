@@ -78,6 +78,7 @@ viz = HelperUtils;          % zalaczenie narzedzi do wyœwietlania robota (byc mo
 
 simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykonywania programu
 
+targetError = false;
 
 %-------------------- GLÓWNA PÊTLA SYMULACJI---------------------------------------------------------------
 figure  
@@ -128,7 +129,7 @@ while true
         
         % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
         explo_points = [];
-        explo_points = exploratory_points2(explo_map, explo_points, last_pose_num, all_poses, middle_Pt, maxLidarRange );
+        explo_points = exploratory_points2(explo_map, explo_points, last_pose_num, all_poses, middle_Pt, maxLidarRange,0.2 );
         
         % weryfikacja dzieci wzglêdem osiagnietych pozycji
         if ~isempty(child) && ~isempty(middle_Pt)
@@ -139,6 +140,15 @@ while true
         if ~isempty(explo_points) && ~isempty(middle_Pt)
             explo_points = verify_PointsToPosses(explo_points,middle_Pt);
         end
+        
+%         if targetError && ~isempty(explo_points) && ~isempty(target_point)
+%             targetError = false;
+%             for i = 1: lenght(explo_points(:,1))
+%                 if explo_points(i,:) == target_point
+%                     explo_points(i,:)= [];
+%                 end
+%             end                   
+%         end
         
         if isempty(explo_points) %jezeli po tej operacji nie ma ani punktow-dzieci ani punktow eksploracyjnych mapowanie zostaje zakonczone
             if isempty(child)
@@ -215,34 +225,24 @@ while true
         end
     % PLANNER RRT*    
     elseif plannerType == "RRT*" 
-%         ss = stateSpaceReedsShepp;
-%         ss.MinTurningRadius = minTurningRadius;
-%         ss.ReverseCost=2;
-%         ss.StateBounds = [temp_map.XWorldLimits; temp_map.YWorldLimits; [-pi pi]];
-%         
-%         vMap = validatorOccupancyMap(ss);
-%         vMap.Map = temp_map;
-%         vMap.ValidationDistance = validationDistance;
         
         vehDim = vehicleDimensions(0.35, 0.23, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.01);
         ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', 0.2, 'NumCircles',3);
-        costmap = vehicleCostmap(temp_map, 'CellSize' , 0.2);
+        costmap = vehicleCostmap(temp_map, 'CellSize' , 0.5);
         costmap.CollisionChecker = ccConfig;
-%         hold on
-%         plot(costmap)
-%         
+        
         planner = pathPlannerRRT(costmap);
-        %planner.ContinueAfterGoalReached = true;
         planner.MaxIterations = maxIterations;
         planner.ConnectionDistance = maxConnectionDistance;
         planner.MinTurningRadius = minTurningRadius;
         planner.GoalTolerance = [0.2, 0.2, 20];
         planner.ConnectionMethod = 'Dubins';
         
-        if checkOccupied(costmap, stop_Location)
-            disp(['Droga nie moze byc wyznaczona dla aktualnego punktu', num2str(stop_Location)])
-            continue
-        end
+%         if checkOccupied(costmap, stop_Location)
+%             disp(['Droga nie moze byc wyznaczona dla aktualnego punktu', num2str(stop_Location)])
+%             targetError = true;
+%             continue
+%         end
         try
         plannerPosesObj = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
                                        [stop_Location(1:2), rad2deg(stop_Location(3))]);        
@@ -254,14 +254,20 @@ while true
         
         [refPoses,refDirections]  = interpolate(plannerPosesObj);
         if length(refPoses)==0
+            
             continue
         end
         hold on
         plot(planner)
         legend('hide')
-        approxSeparation = 0.25; % meters
-        numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
-        [poses,directions] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
+%         approxSeparation = 0.25; % meters
+%         numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
+%         if numSmoothPoses>0
+%             [poses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
+%         else
+%             poses = refPoses;
+%         end
+        poses = refPoses;
         poses = [poses(:,1:2) deg2rad(poses(:,3))];
         poses(end,3) = poses(end-1,3);
         
@@ -334,24 +340,24 @@ while true
 %         show(explo_map, 'FastUpdate', true);
         
         % Aktualiacja znacznika robota
-        hold on
-        if exist('robot_plot', 'var')
-            delete(robot_plot);
-        end
-        robot_plot = viz.plotRobot(gca, all_poses(end,:), 0.5);
+%         hold on
+%         if exist('robot_plot', 'var')
+%             delete(robot_plot);
+%         end
+%         robot_plot = viz.plotRobot(gca, all_poses(end,:), 0.5);
      
         % Aktualizacja przejechanej sciezki (o ile potrzebna)
-        if idx>1 && show_robot_path
-            if goback_flag
-                hold on
-                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '.b');
-            else
-                hold on
-                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '.r');
-            end
-        end
-        drawnow
-        
+%         if idx>1 && show_robot_path
+%             if goback_flag
+%                 hold on
+%                 plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '.b');
+%             else
+%                 hold on
+%                 plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '.r');
+%             end
+%         end
+%         drawnow
+%         
         % Sprawdzenie czy na wyznaczonej trasie nie pojawi³a siê przeszkoda
         isRouteOccupied = any(checkOccupancy(explo_map, poses(:,1:2)));
         if isRouteOccupied && (toc > 0.5)

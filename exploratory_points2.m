@@ -1,4 +1,4 @@
-function explo_points_out = exploratory_points2(explo_map, explo_points_all, last_pos_num, occ_poses, middle_area_points, maxLidarRange)
+function explo_points_out = exploratory_points2(explo_map, explo_points_all, last_pos_num, occ_poses, middle_area_points, maxLidarRange, robotMargin)
 % % OPIS FUNKCJI
 % Funkcja zajmuje siê wyznaczeniem punktów eksploracyjnych, czyli takich
 % do których nale¿y przemieœciæ lidar, aby uzupe³niæ mapê i koñcowo,
@@ -61,7 +61,7 @@ elseif isa(explo_map, 'occupancyMap')
     poses = occ_poses; % to musz¹ byc wszystkie pozycje!
 end
 
-inflate(omap, 0.05);
+inflate(omap, robotMargin);
 
 rangefinder = rangeSensor('HorizontalAngle', [-pi pi],'RangeNoise', 0.001,'Range' , [0 8]);
 [ranges, ~] = rangefinder(poses(end,:), omap);
