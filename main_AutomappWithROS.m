@@ -17,7 +17,7 @@ MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
    
 %Parametry plannera RRT*
-validationDistance = 0.01;
+validationDistance = 0.1;
 maxIterations = 2500;
 maxConnectionDistance = 0.1;
 
@@ -216,7 +216,7 @@ while true
         ss.StateBounds = [temp_map.XWorldLimits; temp_map.YWorldLimits; [-pi pi]];
         
         planner = plannerRRTStar(ss,vMap);
-        planner.ContinueAfterGoalReached = true;
+        %planner.ContinueAfterGoalReached = true;
         planner.MaxIterations = maxIterations;
         planner.MaxConnectionDistance = maxConnectionDistance;
         

@@ -9,7 +9,7 @@ clear all
 
 RealMap = 'mapa_paint5.png';     % Wczytywana rzeczywista mapa 
 MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
-startPoint = [1 0.5 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
+startPoint = [1 1 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
 
 maxLidarRange = 8;               % [m]
 AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
@@ -18,7 +18,7 @@ RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
 MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Wybor rodzaju plannera
-plannerType = "A*  "; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
+plannerType = "RRT*"; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
 
 % Parametry plannera A*
 MinTurningRadius = 0.3;         % Minimalny promien zawracania
@@ -26,10 +26,13 @@ MotionPrimitiveLength = 0.3;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
    
    %Parametry plannera RRT*
-validationDistance = 0.2;
-maxIterations = 2500;
-maxConnectionDistance = 0.1;
+validationDistance = 0.3;
+maxIterations = 10000;
+minTurningRadius = 0.001;
+maxConnectionDistance = 1.5;
 goalRadius = 0.1;
+
+robotSize = 0.2;
 
 
 % Wyniki
@@ -185,9 +188,9 @@ while true
     disp("Planner START!");
     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
     temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
-    inflate(temp_map, 0.2);
+    %inflate(temp_map, robotSize);
     
-    % PLANNER A*
+    % PLANNER hybrid A*
     if plannerType == "HA* "
         vMap = validatorOccupancyMap;
         vMap.Map = temp_map;
@@ -212,29 +215,56 @@ while true
         end
     % PLANNER RRT*    
     elseif plannerType == "RRT*" 
-        ss = stateSpaceSE2;
+%         ss = stateSpaceReedsShepp;
+%         ss.MinTurningRadius = minTurningRadius;
+%         ss.ReverseCost=2;
+%         ss.StateBounds = [temp_map.XWorldLimits; temp_map.YWorldLimits; [-pi pi]];
+%         
+%         vMap = validatorOccupancyMap(ss);
+%         vMap.Map = temp_map;
+%         vMap.ValidationDistance = validationDistance;
         
-        vMap = validatorOccupancyMap(ss);
-        vMap.Map = temp_map;
-        vMap.ValidationDistance = validationDistance;
-        
-        ss.StateBounds = [temp_map.XWorldLimits; temp_map.YWorldLimits; [-pi pi]];
-        
-        planner = plannerRRTStar(ss,vMap);
-        planner.ContinueAfterGoalReached = true;
+        vehDim = vehicleDimensions(0.35, 0.23, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.01);
+        ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', 0.2, 'NumCircles',3);
+        costmap = vehicleCostmap(temp_map, 'CellSize' , 0.2);
+        costmap.CollisionChecker = ccConfig;
+%         hold on
+%         plot(costmap)
+%         
+        planner = pathPlannerRRT(costmap);
+        %planner.ContinueAfterGoalReached = true;
         planner.MaxIterations = maxIterations;
-        planner.MaxConnectionDistance = maxConnectionDistance;
+        planner.ConnectionDistance = maxConnectionDistance;
+        planner.MinTurningRadius = minTurningRadius;
+        planner.GoalTolerance = [0.2, 0.2, 20];
+        planner.ConnectionMethod = 'Dubins';
         
-        try
-        [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
-        poses = plannerPosesObj.States;
-        catch er
-            warning(["RRT* nie moze wyznaczyc trasy, powod : ", er.identifier]);
-            continue;
-            
-            %dodac obsluge bledu jesli bedzie wystepowac
-            
+        if checkOccupied(costmap, stop_Location)
+            disp(['Droga nie moze byc wyznaczona dla aktualnego punktu', num2str(stop_Location)])
+            continue
         end
+        try
+        plannerPosesObj = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
+                                       [stop_Location(1:2), rad2deg(stop_Location(3))]);        
+        catch er
+            warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier]);
+            continue;
+      
+        end
+        
+        [refPoses,refDirections]  = interpolate(plannerPosesObj);
+        if length(refPoses)==0
+            continue
+        end
+        hold on
+        plot(planner)
+        legend('hide')
+        approxSeparation = 0.25; % meters
+        numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
+        [poses,directions] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
+        poses = [poses(:,1:2) deg2rad(poses(:,3))];
+        poses(end,3) = poses(end-1,3);
+        
     elseif plannerType == "A*  " 
         start_local = local2grid(temp_map, start_Location(end,1:2));
         stop_local = local2grid(temp_map, stop_Location(end,1:2));
@@ -300,8 +330,8 @@ while true
         middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:));
         
         % Aktualizacja tworzonej mapy 
-        hold on
-        show(explo_map, 'FastUpdate', true);
+%         hold on
+%         show(explo_map, 'FastUpdate', true);
         
         % Aktualiacja znacznika robota
         hold on
@@ -326,49 +356,49 @@ while true
         isRouteOccupied = any(checkOccupancy(explo_map, poses(:,1:2)));
         if isRouteOccupied && (toc > 0.5)
             
-            % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
-            temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution);
-            inflate(temp_map, 0.01);
-            planner.StateValidator.Map = temp_map;
-            
-            % Replanowanie œciezki wraz obs³uga b³êdów
-            % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
-            temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution);
-            temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
-            inflate(temp_map, 0.01);
-            planner.StateValidator.Map = temp_map;
-            
-            % Replanowanie œciezki wraz obs³uga b³êdów
-            
-            if plannerType == "A*"
-                try
-                    poses = plannerProcess(planner, poses(idx,:), stop_Location);
-                catch er
-                    switch er.identifier
-                        case'nav:navalgs:astar:OccupiedLocation'
-                            warning('Droga nie moze zostac wyznaczona! OccupiedLocation');
-                            RetryCounter = RetryCounter +1 ;
-                            continue;
-                        case 'nav:navalgs:hybridastar:StartError'
-                            warning('Droga nie moze zostac wyznaczona! StartError');
-                            RetryCounter = RetryCounter +1 ;
-                            continue;
-                        otherwise
-                            rethrow(er);
-                    end
-                end
-                
-            elseif  plannerType == "RRT*"
-                try
-                    [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
-                    poses = plannerPosesObj.States;
-                catch er
-                    warning("RRT* nie moze wyznaczyc trasy, powod : ");
-                    continue;
-                    
-                    %dodac obsluge bledu jesli bedzie wystepowac
-                end
-            end
+%             % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
+%             temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution);
+%             inflate(temp_map, robotSize);
+%             planner.StateValidator.Map = temp_map;
+%             
+%             % Replanowanie œciezki wraz obs³uga b³êdów
+%             % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
+%             temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution);
+%             temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
+%             inflate(temp_map, 0.01);
+%             planner.StateValidator.Map = temp_map;
+%             
+%             % Replanowanie œciezki wraz obs³uga b³êdów
+%             
+%             if plannerType == "A*"
+%                 try
+%                     poses = plannerProcess(planner, poses(idx,:), stop_Location);
+%                 catch er
+%                     switch er.identifier
+%                         case'nav:navalgs:astar:OccupiedLocation'
+%                             warning('Droga nie moze zostac wyznaczona! OccupiedLocation');
+%                             RetryCounter = RetryCounter +1 ;
+%                             continue;
+%                         case 'nav:navalgs:hybridastar:StartError'
+%                             warning('Droga nie moze zostac wyznaczona! StartError');
+%                             RetryCounter = RetryCounter +1 ;
+%                             continue;
+%                         otherwise
+%                             rethrow(er);
+%                     end
+%                 end
+%                 
+%             elseif  plannerType == "RRT*"
+%                 try
+%                     [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
+%                     poses = plannerPosesObj.States;
+%                 catch er
+%                     warning('RRT* nie moze wyznaczyc trasy, powod : ');
+%                     continue;
+%                     
+%                     %dodac obsluge bledu jesli bedzie wystepowac
+%                 end
+%             end
             idx = 1;
             tic;
         else
@@ -380,8 +410,9 @@ while true
     
     disp("Navigation to point... DONE!");
     
-    startPoint =  all_poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
-    
+    %
+    %startPoint =  all_poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
+    startPoint =  stop_Location;
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
 
