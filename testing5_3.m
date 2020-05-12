@@ -78,7 +78,7 @@ viz = HelperUtils;          % zalaczenie narzedzi do wyœwietlania robota (byc mo
 
 simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykonywania programu
 
-targetError = false;
+% targetError = false;
 
 %-------------------- GLÓWNA PÊTLA SYMULACJI---------------------------------------------------------------
 figure  
@@ -228,7 +228,7 @@ while true
         
         vehDim = vehicleDimensions(0.35, 0.23, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.01);
         ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', 0.2, 'NumCircles',3);
-        costmap = vehicleCostmap(temp_map, 'CellSize' , 0.5);
+        costmap = vehicleCostmap(temp_map, 'CellSize' , 0.2);
         costmap.CollisionChecker = ccConfig;
         
         planner = pathPlannerRRT(costmap);

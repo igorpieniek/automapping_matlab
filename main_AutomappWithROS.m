@@ -9,7 +9,7 @@ MapResolution = 40;
 MaxNumOfRetry = 4;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Wybor rodzaju plannera
-plannerType = 'A* '; %do wyboru 'A*'(HybridA*) lub RRT(HybridRRT*)
+plannerType = 'RRT'; %do wyboru 'A*'(HybridA*) lub RRT(HybridRRT*)
 
 % Parametry plannera A*
 MinTurningRadius = 0.1;         % Minimalny promien zawracania
@@ -18,11 +18,12 @@ MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    
 %Parametry plannera RRT*
 validationDistance = 0.1;
-maxIterations = 2500;
-maxConnectionDistance = 0.1;
+maxIterations = 10000;
+minTurningRadius = 0.001;
+maxConnectionDistance = 1.5;
 
 goalRadius = 0.3;
-robotRadiusOrg = 0.25;
+robotRadiusOrg = 0.2;
 robotRadiusTemp = robotRadiusOrg;
 
 
@@ -114,7 +115,7 @@ while true
         % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
         explo_points = [];
         disp("Exploratory points search START!");
-        explo_points = exploratory_points2(explo_map_occ, explo_points, last_pose_num, realPoses, middle_Pt, maxLidarRange );
+        explo_points = exploratory_points2(explo_map_occ, explo_points, last_pose_num, realPoses, middle_Pt, maxLidarRange, 0.08 );
         disp("Exploratory points search DONE!");
         % weryfikacja dzieci wzglêdem osiagnietych pozycji
         if ~isempty(child) && ~isempty(middle_Pt)
@@ -154,8 +155,8 @@ while true
     
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
    
-    %start_Location = [realPoses(end,1:2), realPoses(end,3)+pi/2] ;
-    start_Location = [realPoses(end,1:2), Angle2Points(realPoses(end,1:2), target_point(1,1:2))] ;
+    start_Location = [realPoses(end,1:2), realPoses(end,3)+pi/2] ;
+    %start_Location = [realPoses(end,1:2), Angle2Points(realPoses(end,1:2), target_point(1,1:2))] ;
     stop_Location = [target_point Angle2Points(realPoses(end,1:2), target_point(1,1:2) )];
     
     last_pose_num  = length(realPoses(:,1));
@@ -166,7 +167,7 @@ while true
     
     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
     temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
-    inflate(temp_map, robotRadiusTemp);
+%     inflate(temp_map, robotRadiusTemp);
     
     % PLANNER A*
     if plannerType == 'HA*'
@@ -207,42 +208,60 @@ while true
         robotRadiusTemp = robotRadiusOrg;
     % PLANNER RRT*    
     elseif plannerType == 'RRT' 
-        ss = stateSpaceSE2;
+         vehDim = vehicleDimensions(0.35, 0.23, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.01);
+        ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',3);
+        costmap = vehicleCostmap(temp_map, 'CellSize' , 0.5);
+        costmap.CollisionChecker = ccConfig;
         
-        vMap = validatorOccupancyMap(ss);
-        vMap.Map = temp_map;
-        vMap.ValidationDistance = validationDistance;
-        
-        ss.StateBounds = [temp_map.XWorldLimits; temp_map.YWorldLimits; [-pi pi]];
-        
-        planner = plannerRRTStar(ss,vMap);
-        %planner.ContinueAfterGoalReached = true;
+        planner = pathPlannerRRT(costmap);
         planner.MaxIterations = maxIterations;
-        planner.MaxConnectionDistance = maxConnectionDistance;
+        planner.ConnectionDistance = maxConnectionDistance;
+        planner.MinTurningRadius = minTurningRadius;
+        planner.GoalTolerance = [0.2, 0.2, 20];
+        planner.ConnectionMethod = 'Dubins';
         
+%         if checkOccupied(costmap, stop_Location)
+%             disp(['Droga nie moze byc wyznaczona dla aktualnego punktu', num2str(stop_Location)])
+%             targetError = true;
+%             continue
+%         end
         try
-        [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
-        plannerPoses = plannerPosesObj.States;
+        plannerPosesObj = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
+                                       [stop_Location(1:2), rad2deg(stop_Location(3))]);        
         catch er
-            warning(["RRT* nie moze wyznaczyc trasy, powod : ", er.identifier]);
+            warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier]);
+            if robotRadiusTemp <=0.06
+                break
+            end
+            robotRadiusTemp = robotRadiusTemp - 0.02;
             continue;
-            
-            %dodac obsluge bledu jesli bedzie wystepowac
-            
+      
         end
-    elseif plannerType == 'A* '
         
-        
-        plannerPoses = ASTARPATH( start_Location(end,1), start_Location(end,2), )
-    end
-    
-    disp("Planner DONE!");
-    
-    if plannerPoses(end,1)==stop_Location(end,1) && plannerPoses(end,1)==stop_Location(end,1)
-        plannerPoses = [ [realPoses(end,1:2), realPoses(end,3)+pi/2] ; plannerPoses];
-    else
-         plannerPoses = [ [realPoses(end,1:2), realPoses(end,3)+pi/2] ; plannerPoses; [stop_Location(end,1:2), Angle2Points(plannerPoses(end,1:2),stop_Location(end,1:2))] ]; % dadanie aktualnej pozycji i orientacji
-    end
+        [refPoses,refDirections]  = interpolate(plannerPosesObj);
+        if length(refPoses)==0
+            if robotRadiusTemp <=0.06
+                break
+            end
+            robotRadiusTemp = robotRadiusTemp - 0.02;
+            continue
+        end
+        robotRadiusTemp = robotRadiusOrg;
+%         hold on
+%         plot(planner)
+%         legend('hide')
+        approxSeparation = 0.05; % meters
+        numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
+        if numSmoothPoses>0
+            [plannerPoses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
+        else
+            plannerPoses = refPoses;
+        end
+        plannerPoses = [plannerPoses(:,1:2) deg2rad(plannerPoses(:,3))];
+        plannerPoses(end,3) = plannerPoses(end-1,3);
+        plannerPoses = [start_Location; plannerPoses];
+
+end
     
     % Pocz¹tek przemieszczenia pojazdu do zadanego punktu
     disp("Navigation to point...");
