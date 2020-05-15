@@ -15,6 +15,7 @@ if ~isa(map, 'lidarSLAM')
 end
 
 angleOffset = -pi/2;
+disp("Lidar acquisition START!")
 
 while true
     scandata_raw = receive(subscriberObj,10);
@@ -31,4 +32,5 @@ while true
         break;
     end
 end
+disp("Lidar acquisition DONE!")
 map_out = map;

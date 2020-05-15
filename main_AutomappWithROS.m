@@ -6,7 +6,7 @@ clear
 
 maxLidarRange = 8;               % [m]
 MapResolution = 40;
-MaxNumOfRetry = 4;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
+MaxNumOfRetry = 3;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 % Wybor rodzaju plannera
 plannerType = 'RRT'; %do wyboru 'A*'(HybridA*) lub RRT(HybridRRT*)
@@ -19,11 +19,11 @@ MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
 %Parametry plannera RRT*
 validationDistance = 0.1;
 maxIterations = 10000;
-minTurningRadius = 0.01;
+minTurningRadius = 0.1;
 maxConnectionDistance = 1.5;
 
 goalRadius = 0.3;
-robotRadiusOrg = 0.2;
+robotRadiusOrg = 0.12;
 robotRadiusTemp = robotRadiusOrg;
 
 
@@ -161,10 +161,7 @@ while true
     
     last_pose_num  = length(realPoses(:,1));
     
-    
-    % Wyznaczenie najkrótszej œcie¿ki
-    disp("Planner START!");
-
+    disp("Map Processing START!")
     % oszukanie zajetosci przez binaryzacjê aktualnej mapy i kolejn¹ erozjê
     % i dylatacje w celu poprawy wygl¹du mapy oraz umozliwienia jazdy w
     % nieznane
@@ -176,6 +173,10 @@ while true
     temp_map = occupancyMap(binMap , MapResolution); %
     temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
 %     inflate(temp_map, robotRadiusTemp);
+    disp("Map Processing DONE!")
+
+    % Wyznaczenie najkrótszej œcie¿ki
+    disp("Planner START!");  
     
     % PLANNER A*
     if plannerType == 'HA*'
@@ -226,7 +227,7 @@ while true
         planner.ConnectionDistance = maxConnectionDistance;
         planner.MinTurningRadius = minTurningRadius;
         planner.GoalTolerance = [0.2, 0.2, 360];
-        planner.ConnectionMethod = 'Reeds-Shepp';
+        planner.ConnectionMethod = 'Dubins';
         
 %         if checkOccupied(costmap, stop_Location)
 %             disp(['Droga nie moze byc wyznaczona dla aktualnego punktu', num2str(stop_Location)])
@@ -280,6 +281,14 @@ end
     plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
     hold on
     plot(stop_Location(:,1), stop_Location(:,2), 'sb')
+    if ~isempty(child) 
+        if exist('child_plot', 'var')
+            delete(child_plot);
+
+        end
+        hold on
+        child_plot = plot(child(:,1),child(:,2), '.b');
+    end
     
     
     sendPath([],pub_automap, rosmsg, pathIndex) % przesy³anie danych
