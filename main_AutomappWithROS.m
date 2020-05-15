@@ -19,11 +19,11 @@ MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
 %Parametry plannera RRT*
 validationDistance = 0.1;
 maxIterations = 10000;
-minTurningRadius = 0.1;
+minTurningRadius = 0.01;
 maxConnectionDistance = 1.5;
 
 goalRadius = 0.3;
-robotRadiusOrg = 0.12;
+robotRadiusOrg = 0.2;
 robotRadiusTemp = robotRadiusOrg;
 
 
@@ -115,7 +115,7 @@ while true
         % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
         explo_points = [];
         disp("Exploratory points search START!");
-        explo_points = exploratory_points2(explo_map_occ, explo_points, last_pose_num, realPoses, middle_Pt, maxLidarRange, 0.08 );
+        explo_points = exploratory_points2(explo_map_occ, explo_points, last_pose_num, realPoses, middle_Pt, maxLidarRange, 0.05 );
         disp("Exploratory points search DONE!");
         % weryfikacja dzieci wzglêdem osiagnietych pozycji
         if ~isempty(child) && ~isempty(middle_Pt)
@@ -170,6 +170,7 @@ while true
     se2 = strel('cube',8);
     binMap  = imerode(binMap ,se);
     binMap  = imdilate(binMap ,se2);   
+%     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
     temp_map = occupancyMap(binMap , MapResolution); %
     temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
 %     inflate(temp_map, robotRadiusTemp);
@@ -217,10 +218,13 @@ while true
         robotRadiusTemp = robotRadiusOrg;
     % PLANNER RRT*    
     elseif plannerType == 'RRT' 
-        vehDim = vehicleDimensions(0.35, 0.23, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.01);
-        ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',3);
-        costmap = vehicleCostmap(temp_map, 'CellSize' , 0.5);
-        costmap.CollisionChecker = ccConfig;
+
+        vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
+
+        ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
+        tic
+        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );%TO JAKOS D£UGO CHODZI
+        toc
         
         planner = pathPlannerRRT(costmap);
         planner.MaxIterations = maxIterations;
@@ -228,22 +232,31 @@ while true
         planner.MinTurningRadius = minTurningRadius;
         planner.GoalTolerance = [0.2, 0.2, 360];
         planner.ConnectionMethod = 'Dubins';
+
         
-%         if checkOccupied(costmap, stop_Location)
-%             disp(['Droga nie moze byc wyznaczona dla aktualnego punktu', num2str(stop_Location)])
-%             targetError = true;
-%             continue
-%         end
+        
+        stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
+        if isempty(stop_Location)
+            disp('Cel zostal yznaczony mocno poza mapa')
+        end
+        
+        if exist('plannerPosesObj', 'var')
+            clear plannerPosesObj
+        end
         try
-        plannerPosesObj = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
+        [plannerPosesObj,tree] = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
                                        [stop_Location(1:2), rad2deg(stop_Location(3))]);        
         catch er
-            warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier]);
+            warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier, er.message]);
             if robotRadiusTemp <=0.06
                 break
             end
-            robotRadiusTemp = robotRadiusTemp - 0.02;
-            continue;
+            if ~exist('plannerPosesObj', 'var')
+                robotRadiusTemp = robotRadiusTemp - 0.02;
+                continue;   
+            else
+                disp('error sie pojawi³ ale mamy obiekt')
+            end
       
         end
         
@@ -259,7 +272,7 @@ while true
 %         hold on
 %         plot(planner)
 %         legend('hide')
-        approxSeparation = 0.05; % meters
+        approxSeparation = 0.09; % meters
         numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
         try
             [plannerPoses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
