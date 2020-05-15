@@ -1,6 +1,6 @@
 clc
 close all
-clear all
+clear 
 
 %%-------------  PARAMETRY POCZ¥TKOWE  -----------------------------------------
 
@@ -19,7 +19,7 @@ MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
 %Parametry plannera RRT*
 validationDistance = 0.1;
 maxIterations = 10000;
-minTurningRadius = 0.001;
+minTurningRadius = 0.01;
 maxConnectionDistance = 1.5;
 
 goalRadius = 0.3;
@@ -164,8 +164,16 @@ while true
     
     % Wyznaczenie najkrótszej œcie¿ki
     disp("Planner START!");
-    
-    temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
+
+    % oszukanie zajetosci przez binaryzacjê aktualnej mapy i kolejn¹ erozjê
+    % i dylatacje w celu poprawy wygl¹du mapy oraz umozliwienia jazdy w
+    % nieznane
+    binMap = imbinarize(occupancyMatrix(explo_map_occ),0.5);
+    se = strel('cube',4);
+    se2 = strel('cube',8);
+    binMap  = imerode(binMap ,se);
+    binMap  = imdilate(binMap ,se2);   
+    temp_map = occupancyMap(binMap , MapResolution); %
     temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
 %     inflate(temp_map, robotRadiusTemp);
     
@@ -208,7 +216,7 @@ while true
         robotRadiusTemp = robotRadiusOrg;
     % PLANNER RRT*    
     elseif plannerType == 'RRT' 
-         vehDim = vehicleDimensions(0.35, 0.23, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.01);
+        vehDim = vehicleDimensions(0.35, 0.23, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.01);
         ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',3);
         costmap = vehicleCostmap(temp_map, 'CellSize' , 0.5);
         costmap.CollisionChecker = ccConfig;
@@ -217,8 +225,8 @@ while true
         planner.MaxIterations = maxIterations;
         planner.ConnectionDistance = maxConnectionDistance;
         planner.MinTurningRadius = minTurningRadius;
-        planner.GoalTolerance = [0.2, 0.2, 20];
-        planner.ConnectionMethod = 'Dubins';
+        planner.GoalTolerance = [0.2, 0.2, 360];
+        planner.ConnectionMethod = 'Reeds-Shepp';
         
 %         if checkOccupied(costmap, stop_Location)
 %             disp(['Droga nie moze byc wyznaczona dla aktualnego punktu', num2str(stop_Location)])
@@ -252,9 +260,10 @@ while true
 %         legend('hide')
         approxSeparation = 0.05; % meters
         numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
-        if numSmoothPoses>0
+        try
             [plannerPoses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
-        else
+        catch er
+            warning(['Problem ze smoothPathSpline : ', er.identifier]);
             plannerPoses = refPoses;
         end
         plannerPoses = [plannerPoses(:,1:2) deg2rad(plannerPoses(:,3))];
@@ -271,6 +280,7 @@ end
     plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
     hold on
     plot(stop_Location(:,1), stop_Location(:,2), 'sb')
+    
     
     sendPath([],pub_automap, rosmsg, pathIndex) % przesy³anie danych
     sendPath(plannerPoses ,pub_automap, rosmsg, pathIndex) % przesy³anie danych

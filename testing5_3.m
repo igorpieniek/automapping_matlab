@@ -129,7 +129,7 @@ while true
         
         % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
         explo_points = [];
-        explo_points = exploratory_points2(explo_map, explo_points, last_pose_num, all_poses, middle_Pt, maxLidarRange,0.2 );
+        explo_points = exploratory_points2(explo_map, explo_points, last_pose_num, all_poses, middle_Pt, maxLidarRange,0.05 );
         
         % weryfikacja dzieci wzglêdem osiagnietych pozycji
         if ~isempty(child) && ~isempty(middle_Pt)
@@ -235,8 +235,9 @@ while true
         planner.MaxIterations = maxIterations;
         planner.ConnectionDistance = maxConnectionDistance;
         planner.MinTurningRadius = minTurningRadius;
-        planner.GoalTolerance = [0.2, 0.2, 20];
-        planner.ConnectionMethod = 'Dubins';
+        planner.GoalTolerance = [0.3, 0.3, 180];
+        planner.ConnectionMethod = 'Reeds-Shepp';
+        %planner.ApproximateSearch = false;
         
 %         if checkOccupied(costmap, stop_Location)
 %             disp(['Droga nie moze byc wyznaczona dla aktualnego punktu', num2str(stop_Location)])
@@ -260,8 +261,8 @@ while true
         hold on
         plot(planner)
         legend('hide')
-%         approxSeparation = 0.25; % meters
-%         numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
+        approxSeparation = 0.1; % meters
+        numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
 %         if numSmoothPoses>0
 %             [poses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
 %         else
