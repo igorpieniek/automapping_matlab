@@ -218,57 +218,72 @@ while true
         robotRadiusTemp = robotRadiusOrg;
     % PLANNER RRT*    
     elseif plannerType == 'RRT' 
+        plannerStatus = true;
+        plannerFirstIt = true;
+        while true
+            vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
 
-        vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
+            ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
+            tic
+            costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );%TO JAKOS D£UGO CHODZI
+            toc
 
-        ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
-        tic
-        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );%TO JAKOS D£UGO CHODZI
-        toc
-        
-        planner = pathPlannerRRT(costmap);
-        planner.MaxIterations = maxIterations;
-        planner.ConnectionDistance = maxConnectionDistance;
-        planner.MinTurningRadius = minTurningRadius;
-        planner.GoalTolerance = [0.2, 0.2, 360];
-        planner.ConnectionMethod = 'Dubins';
+            planner = pathPlannerRRT(costmap);
+            planner.MaxIterations = maxIterations;
+            planner.ConnectionDistance = maxConnectionDistance;
+            planner.MinTurningRadius = minTurningRadius;
+            planner.GoalTolerance = [0.2, 0.2, 360];
+            planner.ConnectionMethod = 'Dubins';
 
-        
-        
-        stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
-        if isempty(stop_Location)
-            disp('Cel zostal yznaczony mocno poza mapa')
-        end
-        
-        if exist('plannerPosesObj', 'var')
-            clear plannerPosesObj
-        end
-        try
-        [plannerPosesObj,tree] = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
-                                       [stop_Location(1:2), rad2deg(stop_Location(3))]);        
-        catch er
-            warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier, er.message]);
-            if robotRadiusTemp <=0.06
-                break
+
+            if plannerFirstIt
+                stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
+                plannerFirstIt = false;
+                if isempty(stop_Location)
+                    disp('Cel zostal yznaczony mocno poza mapa')
+                    break
+                end
             end
-            if ~exist('plannerPosesObj', 'var')
+
+
+            if exist('plannerPosesObj', 'var')
+                clear plannerPosesObj
+            end
+        
+            try
+            [plannerPosesObj,tree] = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
+                                           [stop_Location(1:2), rad2deg(stop_Location(3))]);        
+            catch er
+                warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier, er.message]);
+                if robotRadiusTemp <=0.06
+                    plannerStatus= false;
+                    break
+                end
+                if ~exist('plannerPosesObj', 'var')
+                    robotRadiusTemp = robotRadiusTemp - 0.02;
+                    continue;   
+                else
+                    disp('error sie pojawi³ ale mamy obiekt')
+                end
+
+            end
+            if plannerPosesObj.Length == 0
+                disp('Planner return length=0 path!')
                 robotRadiusTemp = robotRadiusTemp - 0.02;
-                continue;   
-            else
-                disp('error sie pojawi³ ale mamy obiekt')
+                continue
             end
-      
+            break
         end
         
-        [refPoses,refDirections]  = interpolate(plannerPosesObj);
-        if length(refPoses)==0
-            if robotRadiusTemp <=0.06
-                break
-            end
-            robotRadiusTemp = robotRadiusTemp - 0.02;
+        if ~plannerStatus
             continue
         end
-        robotRadiusTemp = robotRadiusOrg;
+        clear('plannerStatus')
+        clear('plannerFirstIt')
+        
+        robotRadiusTemp = robotRadiusOrg;        
+        [refPoses,refDirections]  = interpolate(plannerPosesObj);
+
 %         hold on
 %         plot(planner)
 %         legend('hide')
@@ -293,11 +308,12 @@ end
     hold on 
     plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
     hold on
+    plot(refPoses(:,1), refPoses(:,2), '*r');
+    hold on
     plot(stop_Location(:,1), stop_Location(:,2), 'sb')
     if ~isempty(child) 
         if exist('child_plot', 'var')
             delete(child_plot);
-
         end
         hold on
         child_plot = plot(child(:,1),child(:,2), '.b');
@@ -314,51 +330,7 @@ end
 
     while( distanceToGoal > goalRadius )
         
-% % odkomentowac gdy trzeba wymagane replanowanie sciezki
-%         isRouteOccupied = any(checkOccupancy(explo_map_occ, plannerPoses(:,1:2)));
-%         if isRouteOccupied 
-%             %   MOTOR STOP
-%             rosmsg.Data = [0 0];
-%             send(pub_automap, rosmsg);
-%             
-%             % Stworzenie tymaczowej mapy dla planera przez binaryzacjê aktualnej - oszukanie zajêtosci obszaru
-%             temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
-%             temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
-%             inflate(temp_map, 0.01);
-%             planner.StateValidator.Map = temp_map;
-%             
-%             % Replanowanie œciezki wraz obs³uga b³êdów
-%             
-%             if plannerType == 'A*'
-%                 try
-%                     plannerPoses = plannerProcess(planner, plannerPoses(idx,:), stop_Location);
-%                 catch er
-%                     switch er.identifier
-%                         case'nav:navalgs:astar:OccupiedLocation'
-%                             warning('Droga nie moze zostac wyznaczona! Proces zostanie przerwany');
-%                             RetryCounter = RetryCounter +1 ;
-%                             continue;
-%                         case 'nav:navalgs:hybridastar:StartError'
-%                             warning('Droga nie moze zostac wyznaczona! (planer A* error) Proces zostanie przerwany');
-%                             RetryCounter = RetryCounter +1 ;
-%                             continue;
-%                         otherwise
-%                             rethrow(er);
-%                     end
-%                 end
-%                 
-%             elseif  plannerType == 'RRT*'
-%                 try
-%                     [plannerPosesObj, ~] = plan(planner,start_Location,stop_Location);
-%                     plannerPoses = plannerPosesObj.States;
-%                 catch er
-%                     warning(["RRT* nie moze wyznaczyc trasy, powod : ", er.identifier]);
-%                     continue;
-%                     
-%                     %dodac obsluge bledu jesli bedzie wystepowac              
-%                 end
-%             end   
-%         end
+
         % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji
         explo_map = LidarAq(explo_map, Lidar_subscriber);
         [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
