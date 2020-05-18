@@ -152,6 +152,8 @@ while true
     
     explo_map = LidarAq(explo_map, Lidar_subscriber);
     [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);   
+    hold on
+    plot(realPoses(end,1), realPoses(end,2),'.k','DisplayName','LIDAR')
     
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
    
@@ -166,10 +168,10 @@ while true
     % i dylatacje w celu poprawy wygl¹du mapy oraz umozliwienia jazdy w
     % nieznane
     binMap = imbinarize(occupancyMatrix(explo_map_occ),0.5);
-    se = strel('cube',4);
-    se2 = strel('cube',8);
-    binMap  = imerode(binMap ,se);
-    binMap  = imdilate(binMap ,se2);   
+%     se = strel('cube',4);
+%     se2 = strel('cube',8);
+%     binMap  = imerode(binMap ,se);
+%     binMap  = imdilate(binMap ,se2);   
 %     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
     temp_map = occupancyMap(binMap , MapResolution); %
     temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
@@ -224,9 +226,7 @@ while true
             vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
 
             ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
-            tic
-            costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );%TO JAKOS D£UGO CHODZI
-            toc
+            costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
 
             planner = pathPlannerRRT(costmap);
             planner.MaxIterations = maxIterations;
@@ -272,29 +272,37 @@ while true
                 robotRadiusTemp = robotRadiusTemp - 0.02;
                 continue
             end
+            
+            if ~checkPathValidity(plannerPosesObj,costmap)
+                disp('path NOT VALID!!!!!')
+            end
+            
             break
         end
         
-        if ~plannerStatus
+        if ~plannerStatus 
             continue
         end
+        
         clear('plannerStatus')
         clear('plannerFirstIt')
         
-        robotRadiusTemp = robotRadiusOrg;        
-        [refPoses,refDirections]  = interpolate(plannerPosesObj);
+        robotRadiusTemp = robotRadiusOrg;  
+        lengths = 0 : 0.08 : plannerPosesObj.Length;
+        [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
 
 %         hold on
 %         plot(planner)
 %         legend('hide')
         approxSeparation = 0.09; % meters
         numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
-        try
-            [plannerPoses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
-        catch er
-            warning(['Problem ze smoothPathSpline : ', er.identifier]);
-            plannerPoses = refPoses;
-        end
+%         try
+%             [plannerPoses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
+%         catch er
+%             warning(['Problem ze smoothPathSpline : ', er.identifier]);
+%             plannerPoses = refPoses;
+%         end
+        plannerPoses = refPoses;
         plannerPoses = [plannerPoses(:,1:2) deg2rad(plannerPoses(:,3))];
         plannerPoses(end,3) = plannerPoses(end-1,3);
         plannerPoses = [start_Location; plannerPoses];
@@ -305,18 +313,18 @@ end
     disp("Navigation to point...");
     hold on
     show(explo_map_occ);
-    hold on 
-    plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
+%     hold on 
+%     plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
     hold on
-    plot(refPoses(:,1), refPoses(:,2), '*r');
+    plot(refPoses(:,1), refPoses(:,2), '.r','DisplayName','Sciezka');
     hold on
-    plot(stop_Location(:,1), stop_Location(:,2), 'sb')
+    plot(stop_Location(:,1), stop_Location(:,2), 'sb','DisplayName','Aktualny cel')
     if ~isempty(child) 
         if exist('child_plot', 'var')
             delete(child_plot);
         end
         hold on
-        child_plot = plot(child(:,1),child(:,2), '.b');
+        child_plot = plot(child(:,1),child(:,2), '.b','DisplayName','Punkty eksploracyjne');
     end
     
     
@@ -334,9 +342,16 @@ end
         % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji
         explo_map = LidarAq(explo_map, Lidar_subscriber);
         [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
+        hold on
+        plot(realPoses(end,1), realPoses(end,2),'.k','DisplayName','LIDAR')
+       
         
-        
-        
+        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
+        if checkOccupied(costmap, realPoses(end,:))
+            disp('CURRENT POSITION IS OCCUPIED!')
+            break
+        end
+             
         
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
         distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
