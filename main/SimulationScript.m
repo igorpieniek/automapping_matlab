@@ -190,7 +190,8 @@ while true
     
     % Inicjalizacja planera
     disp("Planner START!");
-    temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map),0.51), MapResolution); % oszukanie zajetosci przez binaryzacjê aktualnej mapy
+    binMap = imbinarize(occupancyMatrix(explo_map),0.5);
+    temp_map = occupancyMap(binMap , MapResolution); %
     temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
     %inflate(temp_map, robotSize);
     
@@ -224,7 +225,7 @@ while true
         while true
             vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
 
-            ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
+            ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',3);
             costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
 
             planner = pathPlannerRRT(costmap);
@@ -268,7 +269,10 @@ while true
             end
             if plannerPosesObj.Length == 0
                 warning('Planner return length=0 path!')
-                robotRadiusTemp = robotRadiusTemp - 0.02;
+                if robotRadiusTemp >=0.06
+                    robotRadiusTemp = robotRadiusTemp - 0.02;
+                end
+                start_Location(3) = start_Location(3) +pi/2; 
                 continue
             end
             
@@ -289,7 +293,7 @@ while true
         robotRadiusTemp = robotRadiusOrg;  
         lengths = 0 : 0.08 : plannerPosesObj.Length;
         [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
-
+        refPoses2  = interpolate(plannerPosesObj);
 %         hold on
 %         plot(planner)
 %         legend('hide')
@@ -299,7 +303,7 @@ while true
         poses = refPoses;
         poses = [poses(:,1:2) deg2rad(poses(:,3))];
         poses(end,3) = poses(end-1,3);
-        poses = [start_Location; poses];  
+        %poses = [start_Location; poses];  
         
         disp(num2str(checkPathValidity(plannerPosesObj,costmap)));
         occupated = checkOccupied(costmap, poses);
@@ -307,7 +311,9 @@ while true
             warning(['poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]);          
             hold on 
             plot(poses(find(occupated==1), 1),poses(find(occupated==1), 2), 'og')
-            poses(find(occupated==1), :) = [];
+            occupatedIndexes = find(occupated==1);
+
+            poses = poses(1:occupatedIndexes(1), :);
         end
 
        
