@@ -7,7 +7,7 @@ clear all
 %%-------------  PARAMETRY POCZ¥TKOWE  -----------------------------------------
 
 
-RealMap = 'mapa_paint5.png';     % Wczytywana rzeczywista mapa 
+RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\mapa_paint5.png';     % Wczytywana rzeczywista mapa 
 MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
 startPoint = [1 1 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
 
