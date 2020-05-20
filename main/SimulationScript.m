@@ -9,9 +9,9 @@ clear all
 
 RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\mapa_paint5.png';     % Wczytywana rzeczywista mapa 
 MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
-startPoint = [1 1 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
+startPoint = [1 3 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
 
-maxLidarRange = 8;               % [m]
+maxLidarRange = 18;               % [m]
 AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
 RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
 
@@ -29,7 +29,7 @@ MotionPrimitiveLength = 0.3;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
 validationDistance = 0.3;
 maxIterations = 10000;
 minTurningRadius = 0.001;
-maxConnectionDistance = 1.5;
+maxConnectionDistance = 1;
 goalRadius = 0.1;
 
 
@@ -267,7 +267,7 @@ while true
 
             end
             if plannerPosesObj.Length == 0
-                disp('Planner return length=0 path!')
+                warning('Planner return length=0 path!')
                 robotRadiusTemp = robotRadiusTemp - 0.02;
                 continue
             end
@@ -285,12 +285,7 @@ while true
         
         clear('plannerStatus')
         clear('plannerFirstIt')
-        
-%         hold on
-%         plot(planner)
-% 
-%         legend('hide')
-        
+
         robotRadiusTemp = robotRadiusOrg;  
         lengths = 0 : 0.08 : plannerPosesObj.Length;
         [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
@@ -300,56 +295,22 @@ while true
 %         legend('hide')
         approxSeparation = 0.09; % meters
         numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
-%         try
-%             [plannerPoses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
-%         catch er
-%             warning(['Problem ze smoothPathSpline : ', er.identifier]);
-%             plannerPoses = refPoses;
-%         end
+
         poses = refPoses;
         poses = [poses(:,1:2) deg2rad(poses(:,3))];
         poses(end,3) = poses(end-1,3);
-        poses = [start_Location; poses];        
-%         vehDim = vehicleDimensions(0.35, 0.23, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.01);
-%         ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', 0.2, 'NumCircles',3);
-%         costmap = vehicleCostmap(temp_map, 'CellSize' , 0.2);
-%         costmap.CollisionChecker = ccConfig;
-%         
-%         planner = pathPlannerRRT(costmap);
-%         planner.MaxIterations = maxIterations;
-%         planner.ConnectionDistance = maxConnectionDistance;
-%         planner.MinTurningRadius = minTurningRadius;
-%         planner.GoalTolerance = [0.3, 0.3, 180];
-%         planner.ConnectionMethod = 'Reeds-Shepp';
-% 
-%         try
-%         plannerPosesObj = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
-%                                        [stop_Location(1:2), rad2deg(stop_Location(3))]);        
-%         catch er
-%             warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier]);
-%             continue;
-%       
-%         end
-%         
-%         [refPoses,refDirections]  = interpolate(plannerPosesObj);
-%         if length(refPoses)==0
-%             
-%             continue
-%         end
-%         hold on
-%         plot(planner)
-%         legend('hide')
-%         approxSeparation = 0.1; % meters
-%         numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
-% %         if numSmoothPoses>0
-% %             [poses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
-% %         else
-% %             poses = refPoses;
-% %         end
-%         poses = refPoses;
-%         poses = [poses(:,1:2) deg2rad(poses(:,3))];
-%         poses(end,3) = poses(end-1,3);
-%         
+        poses = [start_Location; poses];  
+        
+        disp(num2str(checkPathValidity(plannerPosesObj,costmap)));
+        occupated = checkOccupied(costmap, poses);
+        if any(occupated)
+            warning(['poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]);          
+            hold on 
+            plot(poses(find(occupated==1), 1),poses(find(occupated==1), 2), 'og')
+            poses(find(occupated==1), :) = [];
+        end
+
+       
     elseif plannerType == "A*  " 
         start_local = local2grid(temp_map, start_Location(end,1:2));
         stop_local = local2grid(temp_map, stop_Location(end,1:2));
@@ -447,9 +408,11 @@ while true
         
         if checkOccupied(costmap, all_poses(end,:))
             disp("ROUTE OCCUPIED, EXECUTING ROUTE WILL BE STOPPED,NEW ROUTE WILL BE PREPARED")
+            %startPoint =  all_poses(end,:);
             break
         else
             idx = idx + 1;
+            %startPoint =  stop_Location;
         end
     end
     
@@ -457,9 +420,9 @@ while true
     
     disp("Navigation to point... DONE!");
     
-    %
+    startPoint =  all_poses(end,:);
     %startPoint =  all_poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
-    startPoint =  stop_Location;
+    
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
 
