@@ -9,7 +9,7 @@ clear all
 
 RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\mapa_paint5.png';     % Wczytywana rzeczywista mapa 
 MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
-startPoint = [1 3 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
+startPoint = [1 1 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
 
 maxLidarRange = 18;               % [m]
 AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
@@ -34,7 +34,7 @@ goalRadius = 0.1;
 
 
 robotSize = 0.2;
-robotRadiusOrg = 0.2;
+robotRadiusOrg = 0.3;
 robotRadiusTemp = robotRadiusOrg; 
 
 % Wyniki
@@ -225,15 +225,16 @@ while true
         while true
             vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
 
-            ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',3);
+            ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
             costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
 
-            planner = pathPlannerRRT(costmap);
-            planner.MaxIterations = maxIterations;
-            planner.ConnectionDistance = maxConnectionDistance;
-            planner.MinTurningRadius = minTurningRadius;
-            planner.GoalTolerance = [0.2, 0.2, 360];
-            planner.ConnectionMethod = 'Dubins';
+            planner = pathPlannerRRT(costmap, 'MaxIterations',maxIterations,'ConnectionDistance',maxConnectionDistance, ...
+                                    'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
+%             planner.MaxIterations = maxIterations;
+%             planner.ConnectionDistance = maxConnectionDistance;
+%             planner.MinTurningRadius = minTurningRadius;
+%             planner.GoalTolerance = [0.2, 0.2, 360];
+%             planner.ConnectionMethod = 'Dubins';
 
 
             if plannerFirstIt
@@ -308,12 +309,16 @@ while true
         disp(num2str(checkPathValidity(plannerPosesObj,costmap)));
         occupated = checkOccupied(costmap, poses);
         if any(occupated)
-            warning(['poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]);          
             hold on 
             plot(poses(find(occupated==1), 1),poses(find(occupated==1), 2), 'og')
-            occupatedIndexes = find(occupated==1);
-
-            poses = poses(1:occupatedIndexes(1), :);
+            if any(occupated(end-2:end))
+                 warning(['last positions in blocked area!!!:',num2str(find(occupated==1)'), 'length:', num2str(length(occupated)) ]); 
+                 occupatedIndexes = find(occupated==1);
+                 poses = poses(1:occupatedIndexes(1)-1, :);
+            else
+                warning(['poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]); 
+            end
+            
         end
 
        
@@ -415,7 +420,8 @@ while true
         if checkOccupied(costmap, all_poses(end,:))
             disp("ROUTE OCCUPIED, EXECUTING ROUTE WILL BE STOPPED,NEW ROUTE WILL BE PREPARED")
             %startPoint =  all_poses(end,:);
-            break
+            %break
+            idx = idx + 1;
         else
             idx = idx + 1;
             %startPoint =  stop_Location;
