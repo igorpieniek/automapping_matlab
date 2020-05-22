@@ -30,12 +30,18 @@ validationDistance = 0.3;
 maxIterations = 10000;
 minTurningRadius = 0.001;
 maxConnectionDistance = 1;
-goalRadius = 0.1;
-
 
 robotSize = 0.2;
 robotRadiusOrg = 0.3;
 robotRadiusTemp = robotRadiusOrg; 
+
+vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
+ccConfigOrg = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusOrg, 'NumCircles',1);
+
+goalRadius = 0.1;
+
+
+
 
 % Wyniki
 show_child_points = true;       % Aktualne przedstawienie wszystkich punktów rozgalezien
@@ -223,21 +229,16 @@ while true
         plannerStatus = true;
         plannerFirstIt = true;
         while true
-            vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
-
             ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
             costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
 
             planner = pathPlannerRRT(costmap, 'MaxIterations',maxIterations,'ConnectionDistance',maxConnectionDistance, ...
                                     'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
-%             planner.MaxIterations = maxIterations;
-%             planner.ConnectionDistance = maxConnectionDistance;
-%             planner.MinTurningRadius = minTurningRadius;
-%             planner.GoalTolerance = [0.2, 0.2, 360];
-%             planner.ConnectionMethod = 'Dubins';
-
 
             if plannerFirstIt
+                costmapOrg = copy(costmap);
+                plannerOrg = pathPlannerRRT(costmap, 'MaxIterations',maxIterations,'ConnectionDistance',maxConnectionDistance, ...
+                                    'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
                 stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
                 plannerFirstIt = false;
                 if isempty(stop_Location)
@@ -290,7 +291,10 @@ while true
         
         clear('plannerStatus')
         clear('plannerFirstIt')
-
+        diffrentRadiusFlag = false;
+        if robotRadiusTemp ~= robotRadiusOrg
+             diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
+        end
         robotRadiusTemp = robotRadiusOrg;  
         lengths = 0 : 0.08 : plannerPosesObj.Length;
         [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
@@ -298,8 +302,6 @@ while true
 %         hold on
 %         plot(planner)
 %         legend('hide')
-        approxSeparation = 0.09; % meters
-        numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
 
         poses = refPoses;
         poses = [poses(:,1:2) deg2rad(poses(:,3))];
@@ -307,7 +309,7 @@ while true
         %poses = [start_Location; poses];  
         
         disp(num2str(checkPathValidity(plannerPosesObj,costmap)));
-        occupated = checkOccupied(costmap, poses);
+        occupated = checkOccupied(costmapOrg, [poses(:,1:2) rad2deg(poses(:,3))] );
         if any(occupated)
             hold on 
             plot(poses(find(occupated==1), 1),poses(find(occupated==1), 2), 'og')
@@ -414,17 +416,25 @@ while true
         binMap = imbinarize(occupancyMatrix(explo_map),0.5);
         temp_map = occupancyMap(binMap , MapResolution); %
         temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
-        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
-
+        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );
         
-        if checkOccupied(costmap, all_poses(end,:))
-            disp("ROUTE OCCUPIED, EXECUTING ROUTE WILL BE STOPPED,NEW ROUTE WILL BE PREPARED")
-            %startPoint =  all_poses(end,:);
-            %break
-            idx = idx + 1;
-        else
-            idx = idx + 1;
-            %startPoint =  stop_Location;
+        idx = idx + 1;
+        
+        if diffrentRadiusFlag && checkFree(costmap, [all_poses(end,1:2) rad2deg(all_poses(end,3))])
+            warning('Vehicle left occupied area!')
+%             try
+%                 plannerPosesCheck = plan(plannerOrg,[start_Location(1:2), rad2deg(start_Location(3))], ... %do sprawdzenia rzeczywistej zajetosci pozycji- checkFree nie jest dobrym wyznacznikiem
+%                                                 [stop_Location(1:2), rad2deg(stop_Location(3))]);        
+%             catch er
+%                 continue
+%             end
+%             
+            diffrentRadiusFlag = false;
+            break
+        end
+        
+        if checkOccupied(costmap, [all_poses(end,1:2) rad2deg(all_poses(end,3))])
+            disp("ROUTE OCCUPIED ")
         end
     end
     

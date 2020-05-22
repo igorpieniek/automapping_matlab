@@ -7,7 +7,7 @@ maxRadius = 10 * cellStep;
 hold on
 plot(point(1,1),point(1,2),'*k' )
 angleRes = deg2rad(20);
-if checkOccupied(costmap, point(1,1:2))
+if checkOccupied(costmap, [point(1,1:2) rad2deg(point(1,3))])
     for i = cellStep : cellStep : maxRadius
         for angle = 0: angleRes: 2*pi
             x = point(1,1) + i*cos(angle);
