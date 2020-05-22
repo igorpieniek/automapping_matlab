@@ -11,6 +11,6 @@ if(mod(length(ranges),2) == 0)
     [min_d , index] = min(d); % wyznaczneie minimalnej œrednicy oraz jej indeksu wzglêdem macierzy
     angle = [angles(index) angles(index + length(secondhalf))]; % wziêcie tych k¹tów z angles
     interPoints = rayIntersection(map, poses(end, :), angle, 2*min_d); % wyznaczenie punktów przeiciêæ
-    out= [mean(interPoints) (min_d/2)]; % format [x y r]
+    out= [mean(interPoints) 0.95.*(min_d/2)]; % format [x y r]
       
 end

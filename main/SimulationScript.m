@@ -11,7 +11,7 @@ RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\mapa_paint5.png';   
 MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
 startPoint = [1 1 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
 
-maxLidarRange = 18;               % [m]
+maxLidarRange = 12;               % [m]
 AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
 RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
 
@@ -271,8 +271,11 @@ while true
             end
             if plannerPosesObj.Length == 0
                 warning('Planner return length=0 path!')
-                if robotRadiusTemp >=0.06
-                    robotRadiusTemp = robotRadiusTemp - 0.02;
+                if robotRadiusTemp <=0.06
+                    plannerStatus= false;
+                    break
+                else
+                    robotRadiusTemp = robotRadiusTemp - 0.02; %%%%%%%%%%%%%%%%%%
                 end
                 start_Location(3) = start_Location(3) +pi/2; 
                 continue
@@ -296,7 +299,7 @@ while true
              diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
         end
         robotRadiusTemp = robotRadiusOrg;  
-        lengths = 0 : 0.08 : plannerPosesObj.Length;
+        lengths = 0 : 0.18 : plannerPosesObj.Length;
         [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
         refPoses2  = interpolate(plannerPosesObj);
 %         hold on
@@ -387,6 +390,10 @@ while true
         % Zapisanie aktualnej pozycji robota
         all_poses(end+1,:) = poses(idx,:); % odczytanie ostatniej pozycji i dopisanie jej do tablicy wszystkich pozycji
         middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:));
+        %middle_Pt(end+1,:) = middle_points2(explo_map, all_poses(end,:));
+%         viscircles(test(1:2), test(3),'Color', 'b')
+%         hold on
+%         viscircles(middle_Pt(:,1:2), middle_Pt(:,3),'Color', 'b' );
         
         % Aktualizacja tworzonej mapy 
         hold on
@@ -410,9 +417,9 @@ while true
             end
         end
         drawnow
-%         
+      
         % Sprawdzenie czy na wyznaczonej trasie nie pojawi³a siê przeszkoda
-%        isRouteOccupied = any(checkOccupancy(explo_map, poses(:,1:2)));
+
         binMap = imbinarize(occupancyMatrix(explo_map),0.5);
         temp_map = occupancyMap(binMap , MapResolution); %
         temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
@@ -422,13 +429,7 @@ while true
         
         if diffrentRadiusFlag && checkFree(costmap, [all_poses(end,1:2) rad2deg(all_poses(end,3))])
             warning('Vehicle left occupied area!')
-%             try
-%                 plannerPosesCheck = plan(plannerOrg,[start_Location(1:2), rad2deg(start_Location(3))], ... %do sprawdzenia rzeczywistej zajetosci pozycji- checkFree nie jest dobrym wyznacznikiem
-%                                                 [stop_Location(1:2), rad2deg(stop_Location(3))]);        
-%             catch er
-%                 continue
-%             end
-%             
+
             diffrentRadiusFlag = false;
             break
         end
@@ -437,13 +438,12 @@ while true
             disp("ROUTE OCCUPIED ")
         end
     end
+
     
     RetryCounter = 0; 
     
     disp("Navigation to point... DONE!");
-    
-    startPoint =  all_poses(end,:);
-    %startPoint =  all_poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
+    startPoint =  all_poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
     
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
