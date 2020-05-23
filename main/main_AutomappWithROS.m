@@ -23,9 +23,12 @@ minTurningRadius = 0.01;
 maxConnectionDistance = 1.5;
 
 goalRadius = 0.3;
+
 robotRadiusOrg = 0.2;
 robotRadiusTemp = robotRadiusOrg;
 
+vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
+ccConfigOrg = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusOrg, 'NumCircles',1);
 
 % ROS Node init
 node_automap = ros.Node('/matlab_automap');
@@ -62,7 +65,6 @@ RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania tra
 
 simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykonywania programu
 
-% PLANNER RRT* INIT (TEST PLANNERA)
 
 
 %-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
@@ -223,20 +225,16 @@ while true
         plannerStatus = true;
         plannerFirstIt = true;
         while true
-            vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
-
             ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
             costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
 
-            planner = pathPlannerRRT(costmap);
-            planner.MaxIterations = maxIterations;
-            planner.ConnectionDistance = maxConnectionDistance;
-            planner.MinTurningRadius = minTurningRadius;
-            planner.GoalTolerance = [0.2, 0.2, 360];
-            planner.ConnectionMethod = 'Dubins';
-
+            planner = pathPlannerRRT(costmap, 'MaxIterations',maxIterations,'ConnectionDistance',maxConnectionDistance, ...
+                                    'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
 
             if plannerFirstIt
+                costmapOrg = copy(costmap);
+                plannerOrg = copy(planner);
+                start_LocationOrg = copy(start_Location);                
                 stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
                 plannerFirstIt = false;
                 if isempty(stop_Location)
@@ -268,8 +266,14 @@ while true
 
             end
             if plannerPosesObj.Length == 0
-                disp('Planner return length=0 path!')
-                robotRadiusTemp = robotRadiusTemp - 0.02;
+                warning('Planner return length=0 path!')
+                if robotRadiusTemp <=0.06
+                    plannerStatus= false;
+                    break
+                else
+                    robotRadiusTemp = robotRadiusTemp - 0.02; %%%%%%%%%%%%%%%%%%
+                end
+                start_Location(3) = start_Location(3) +pi/2; 
                 continue
             end
             
@@ -286,26 +290,32 @@ while true
         
         clear('plannerStatus')
         clear('plannerFirstIt')
-        
+        diffrentRadiusFlag = false;
+        if robotRadiusTemp ~= robotRadiusOrg
+             diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
+        end
         robotRadiusTemp = robotRadiusOrg;  
-        lengths = 0 : 0.08 : plannerPosesObj.Length;
-        [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
+        lengths = 0 : 0.18 : plannerPosesObj.Length;
+        plannerPoses  = interpolate(plannerPosesObj,lengths);
 
-%         hold on
-%         plot(planner)
-%         legend('hide')
-        approxSeparation = 0.09; % meters
-        numSmoothPoses = round(plannerPosesObj.Length / approxSeparation);
-%         try
-%             [plannerPoses,~] = smoothPathSpline(refPoses,refDirections,numSmoothPoses);
-%         catch er
-%             warning(['Problem ze smoothPathSpline : ', er.identifier]);
-%             plannerPoses = refPoses;
-%         end
-        plannerPoses = refPoses;
         plannerPoses = [plannerPoses(:,1:2) deg2rad(plannerPoses(:,3))];
         plannerPoses(end,3) = plannerPoses(end-1,3);
-        plannerPoses = [start_Location; plannerPoses];
+        plannerPoses(1,:) = start_LocationOrg;
+
+        occupated = checkOccupied(costmapOrg, [plannerPoses(:,1:2) rad2deg(plannerPoses(:,3))] );
+        if any(occupated)
+            hold on 
+            plot(plannerPoses(find(occupated==1), 1),plannerPoses(find(occupated==1), 2), 'og')
+            if any(occupated(end-2:end))
+                 warning(['last positions in blocked area!!!:',num2str(find(occupated==1)'), 'length:', num2str(length(occupated)) ]); 
+                 occupatedIndexes = find(occupated==1);
+                 plannerPoses = plannerPoses(1:occupatedIndexes(1)-1, :);
+            else
+                warning(['poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]); 
+            end
+            
+        end
+
 
 end
     
@@ -342,23 +352,34 @@ end
         % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji
         explo_map = LidarAq(explo_map, Lidar_subscriber);
         [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
+        
         hold on
         plot(realPoses(end,1), realPoses(end,2),'.k','DisplayName','LIDAR')
        
-        
-        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
-        if checkOccupied(costmap, realPoses(end,:))
-            disp('CURRENT POSITION IS OCCUPIED!')
-            break
-        end
-             
         
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
         distanceToGoal = norm(realPoses(end,1:2) - plannerPoses(end, 1:2));
         
         disp('NEXT MEASURMENT')
         disp(num2str(distanceToGoal))
+                    
+        binMap = imbinarize(occupancyMatrix(explo_map_occ),0.5);
+        temp_map = occupancyMap(binMap , MapResolution); %
+        temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
+        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );
         
+        
+        if diffrentRadiusFlag && checkFree(costmap, [realPoses(end,1:2) rad2deg(realPoses(end,3))])
+            warning('Vehicle left occupied area!')
+            diffrentRadiusFlag = false;
+            break
+        end
+        
+        if checkOccupied(costmap, [realPoses(end,1:2) rad2deg(realPoses(end,3))])
+            disp("ROUTE OCCUPIED ")
+        end
+        
+        % Sprawdzenie czy robot stan¹³ w miejscu  - powodu pozornego dotarcia do celu lub b³êdu
         if distanceToGoal < lastDistanceToGoal + 0.02 && distanceToGoal > lastDistanceToGoal - 0.02
             RetryCounter = RetryCounter+1;
             if RetryCounter >= MaxNumOfRetry

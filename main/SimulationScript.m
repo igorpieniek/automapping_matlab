@@ -15,8 +15,6 @@ maxLidarRange = 12;               % [m]
 AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
 RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
 
-MaxNumOfRetry = 10;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
-
 % Wybor rodzaju plannera
 plannerType = "RRT*"; %do wyboru 'A*'(HybridA*) lub RRT*(HybridRRT*)
 
@@ -37,9 +35,6 @@ robotRadiusTemp = robotRadiusOrg;
 
 vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
 ccConfigOrg = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusOrg, 'NumCircles',1);
-
-goalRadius = 0.1;
-
 
 
 
@@ -237,8 +232,7 @@ while true
 
             if plannerFirstIt
                 costmapOrg = copy(costmap);
-                plannerOrg = pathPlannerRRT(costmap, 'MaxIterations',maxIterations,'ConnectionDistance',maxConnectionDistance, ...
-                                    'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
+                plannerOrg = copy(planner);
                 stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
                 plannerFirstIt = false;
                 if isempty(stop_Location)
@@ -379,7 +373,7 @@ while true
     disp("Navigation to point...");
     idx =1;
     tic
-    while idx <= size(poses,1) && RetryCounter <= MaxNumOfRetry
+    while idx <= size(poses,1)
         ranges = [];
         angles = [];
         
@@ -435,9 +429,6 @@ while true
             disp("ROUTE OCCUPIED ")
         end
     end
-
-    
-    RetryCounter = 0; 
     
     disp("Navigation to point... DONE!");
     startPoint =  all_poses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
