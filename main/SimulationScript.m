@@ -232,7 +232,6 @@ while true
 
             if plannerFirstIt
                 costmapOrg = copy(costmap);
-                plannerOrg = copy(planner);
                 stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
                 plannerFirstIt = false;
                 if isempty(stop_Location)
@@ -383,7 +382,8 @@ while true
         
         % Zapisanie aktualnej pozycji robota
         all_poses(end+1,:) = poses(idx,:); % odczytanie ostatniej pozycji i dopisanie jej do tablicy wszystkich pozycji
-        middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:), middle_Pt);
+        %middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:), middle_Pt);
+        middle_Pt(end+1,:) = middle_points2(explo_map, all_poses(end,:), middle_Pt);
 
         
         % Aktualizacja tworzonej mapy 

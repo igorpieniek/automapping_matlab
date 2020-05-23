@@ -233,8 +233,7 @@ while true
 
             if plannerFirstIt
                 costmapOrg = copy(costmap);
-                plannerOrg = copy(planner);
-                start_LocationOrg = copy(start_Location);                
+                start_LocationOrg = start_Location;                
                 stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
                 plannerFirstIt = false;
                 if isempty(stop_Location)
@@ -326,7 +325,7 @@ end
 %     hold on 
 %     plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
     hold on
-    plot(refPoses(:,1), refPoses(:,2), '.r','DisplayName','Sciezka');
+    plot(plannerPoses(:,1), plannerPoses (:,2), '.r','DisplayName','Sciezka');
     hold on
     plot(stop_Location(:,1), stop_Location(:,2), 'sb','DisplayName','Aktualny cel')
     if ~isempty(child) 
@@ -365,7 +364,7 @@ end
                     
         binMap = imbinarize(occupancyMatrix(explo_map_occ),0.5);
         temp_map = occupancyMap(binMap , MapResolution); %
-        temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
+        temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
         costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );
         
         
