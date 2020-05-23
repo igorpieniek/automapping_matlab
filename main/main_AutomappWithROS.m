@@ -392,9 +392,8 @@ end
         lastDistanceToGoal = distanceToGoal;
         
         % Wyznaczenie okregow filtrujacych
-        middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:));
+        middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:), middle_Pt);
          
-        %RetryCounter = 0; 
     
         
     end
