@@ -389,11 +389,8 @@ while true
         
         % Zapisanie aktualnej pozycji robota
         all_poses(end+1,:) = poses(idx,:); % odczytanie ostatniej pozycji i dopisanie jej do tablicy wszystkich pozycji
-        middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:));
-        %middle_Pt(end+1,:) = middle_points2(explo_map, all_poses(end,:));
-%         viscircles(test(1:2), test(3),'Color', 'b')
-%         hold on
-%         viscircles(middle_Pt(:,1:2), middle_Pt(:,3),'Color', 'b' );
+        middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:), middle_Pt);
+
         
         % Aktualizacja tworzonej mapy 
         hold on
