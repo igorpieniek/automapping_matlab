@@ -50,6 +50,7 @@ explo_map = LidarAq(explo_map, Lidar_subscriber);
 
 last_pose_num  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
 explo_points=[];    % tablica na punkty eksploracyjne
+all_plannerPoses = [];
 
 
 % Inicjalizacja zmiennych potrzebnych w g³ównej pêtli 
@@ -153,14 +154,17 @@ while true
     
     
     explo_map = LidarAq(explo_map, Lidar_subscriber);
-    [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);   
+    [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange); 
+    if exist('lidarPlot', 'var')
+        delete(lidarPlot);
+    end
     hold on
-    plot(realPoses(end,1), realPoses(end,2),'.k','DisplayName','LIDAR')
+    lidarPlot = plot(realPoses(:,1), realPoses(:,2),'-k.','DisplayName','LIDAR');
     
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
    
     start_Location = [realPoses(end,1:2), realPoses(end,3)+pi/2] ;
-    %start_Location = [realPoses(end,1:2), Angle2Points(realPoses(end,1:2), target_point(1,1:2))] ;
+
     stop_Location = [target_point Angle2Points(realPoses(end,1:2), target_point(1,1:2) )];
     
     last_pose_num  = length(realPoses(:,1));
@@ -170,11 +174,6 @@ while true
     % i dylatacje w celu poprawy wygl¹du mapy oraz umozliwienia jazdy w
     % nieznane
     binMap = imbinarize(occupancyMatrix(explo_map_occ),0.5);
-%     se = strel('cube',4);
-%     se2 = strel('cube',8);
-%     binMap  = imerode(binMap ,se);
-%     binMap  = imdilate(binMap ,se2);   
-%     temp_map = occupancyMap(imbinarize(occupancyMatrix(explo_map_occ),0.51), MapResolution);
     temp_map = occupancyMap(binMap , MapResolution); %
     temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
 %     inflate(temp_map, robotRadiusTemp);
@@ -303,8 +302,8 @@ while true
 
         occupated = checkOccupied(costmapOrg, [plannerPoses(:,1:2) rad2deg(plannerPoses(:,3))] );
         if any(occupated)
-            hold on 
-            plot(plannerPoses(find(occupated==1), 1),plannerPoses(find(occupated==1), 2), 'og')
+%             hold on 
+%             plot(plannerPoses(find(occupated==1), 1),plannerPoses(find(occupated==1), 2), 'og')
             if any(occupated(end-2:end))
                  warning(['last positions in blocked area!!!:',num2str(find(occupated==1)'), 'length:', num2str(length(occupated)) ]); 
                  occupatedIndexes = find(occupated==1);
@@ -318,25 +317,33 @@ while true
 
 end
     
-    % Pocz¹tek przemieszczenia pojazdu do zadanego punktu
+    
     disp("Navigation to point...");
+    
     hold on
-    show(explo_map_occ);
-%     hold on 
-%     plot(plannerPoses(:,1), plannerPoses(:,2), '.r');
+    show(explo_map_occ,'FastUpdate', true);
     hold on
-    plot(plannerPoses(:,1), plannerPoses (:,2), '.r','DisplayName','Sciezka');
+    if exist('plannerPlot', 'var')
+        delete(plannerPlot);
+    end
+    plannerPlot = plot(plannerPoses(:,1), plannerPoses (:,2), '-r.','DisplayName','Œcie¿ka');
+    
     hold on
-    plot(stop_Location(:,1), stop_Location(:,2), 'sb','DisplayName','Aktualny cel')
+    if exist('targetPlot', 'var')
+        delete(targetPlot);
+    end
+    targetPlot = plot(stop_Location(:,1), stop_Location(:,2), 'sb','DisplayName','Aktualny cel');
+    
     if ~isempty(child) 
         if exist('child_plot', 'var')
             delete(child_plot);
         end
         hold on
-        child_plot = plot(child(:,1),child(:,2), '.b','DisplayName','Punkty eksploracyjne');
+        child_plot = plot(child(:,1),child(:,2), '.', 'Color', '#77AC30','DisplayName','Punkty eksploracyjne');
     end
+    legend()
     
-    
+    % Wysy³anie œcie¿ki 
     sendPath([],pub_automap, rosmsg, pathIndex) % przesy³anie danych
     sendPath(plannerPoses ,pub_automap, rosmsg, pathIndex) % przesy³anie danych
  
@@ -352,8 +359,18 @@ end
         explo_map = LidarAq(explo_map, Lidar_subscriber);
         [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
         
+        % Wyznaczenie okregow filtrujacych
+        middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:), middle_Pt);
+        
         hold on
-        plot(realPoses(end,1), realPoses(end,2),'.k','DisplayName','LIDAR')
+        show(explo_map_occ,'FastUpdate', true);
+        hold on
+        if exist('lidarPlot', 'var')
+            delete(lidarPlot);
+        end
+        lidarPlot = plot(realPoses(:,1), realPoses(:,2),'-k.','DisplayName','LIDAR');
+        
+        drawnow
        
         
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
@@ -389,18 +406,12 @@ end
         end
         
         lastDistanceToGoal = distanceToGoal;
-        
-        % Wyznaczenie okregow filtrujacych
-        middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:), middle_Pt);
          
-    
-        
     end
     sendPath([],pub_automap, rosmsg, pathIndex) % stop motors
     disp("Navigation to point... DONE!");
     
-    startPoint =  plannerPoses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
-    
+    all_plannerPoses =  [all_plannerPoses; plannerPoses];
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
 
