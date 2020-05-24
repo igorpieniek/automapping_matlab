@@ -17,14 +17,14 @@ MotionPrimitiveLength = 0.1;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
    
 %Parametry plannera RRT*
-validationDistance = 0.1;
+validationDistance = 0.3;
 maxIterations = 10000;
 minTurningRadius = 0.01;
-maxConnectionDistance = 1.5;
+maxConnectionDistance = 1;
 
 goalRadius = 0.3;
 
-robotRadiusOrg = 0.2;
+robotRadiusOrg = 0.3;
 robotRadiusTemp = robotRadiusOrg;
 
 vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
@@ -70,6 +70,7 @@ simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykony
 
 %-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
 figure
+figAxis = [-7 2 -3 6];
 while true
     %%--------------- Czêœæ algortytmu odpowiadaj¹ca za rozgalezienia -------------
     
@@ -87,7 +88,7 @@ while true
         parentTochild_route(to_delete,:) = [];                                % usuniêcie punktow o zapisanym identyfikatorze
 
         
-        if  parentTochild_route(end,1) == parentNum && length(parentTochild_route(:,1))>1 %jezeli operujemy caly czas na tym samym identyfikatorze rodzica
+        if  length(parentTochild_route(:,1))>1 && parentTochild_route(end,1) == parentNum  %jezeli operujemy caly czas na tym samym identyfikatorze rodzica
             target_point = parentTochild_route(end,2:3); % wyznaczenie aktualnego celu jako ostatneigu punktu z listy punktow powrotnych
             parentTochild_route(end, :) = [];
         else
@@ -160,7 +161,6 @@ while true
     end
     hold on
     lidarPlot = plot(realPoses(:,1), realPoses(:,2),'-k.','DisplayName','LIDAR');
-    
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
    
     start_Location = [realPoses(end,1:2), realPoses(end,3)+pi/2] ;
@@ -168,6 +168,8 @@ while true
     stop_Location = [target_point Angle2Points(realPoses(end,1:2), target_point(1,1:2) )];
     
     last_pose_num  = length(realPoses(:,1));
+    
+
     
     disp("Map Processing START!")
     % oszukanie zajetosci przez binaryzacjê aktualnej mapy i kolejn¹ erozjê
@@ -223,6 +225,7 @@ while true
     elseif plannerType == 'RRT' 
         plannerStatus = true;
         plannerFirstIt = true;
+        start_LocationOrg = start_Location;  
         while true
             ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
             costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
@@ -231,9 +234,8 @@ while true
                                     'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
 
             if plannerFirstIt
-                costmapOrg = copy(costmap);
-                start_LocationOrg = start_Location;                
-                stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
+                costmapOrg = copy(costmap);              
+                stop_Location = changePointToClosest(temp_map, costmapOrg, stop_Location);
                 plannerFirstIt = false;
                 if isempty(stop_Location)
                     disp('Cel zostal yznaczony mocno poza mapa')
@@ -251,7 +253,7 @@ while true
                                            [stop_Location(1:2), rad2deg(stop_Location(3))]);        
             catch er
                 warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier, er.message]);
-                if robotRadiusTemp <=0.06
+                if robotRadiusTemp <=0.1
                     plannerStatus= false;
                     break
                 end
@@ -265,13 +267,13 @@ while true
             end
             if plannerPosesObj.Length == 0
                 warning('Planner return length=0 path!')
-                if robotRadiusTemp <=0.06
+                if robotRadiusTemp <=0.1
                     plannerStatus= false;
                     break
                 else
                     robotRadiusTemp = robotRadiusTemp - 0.02; %%%%%%%%%%%%%%%%%%
                 end
-                start_Location(3) = start_Location(3) +pi/2; 
+                %start_Location(3) = start_Location(3) +pi/2; 
                 continue
             end
             
@@ -293,21 +295,27 @@ while true
              diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
         end
         robotRadiusTemp = robotRadiusOrg;  
-        lengths = 0 : 0.18 : plannerPosesObj.Length;
+        lengths = 0 : 0.15 : plannerPosesObj.Length;
         plannerPoses  = interpolate(plannerPosesObj,lengths);
 
         plannerPoses = [plannerPoses(:,1:2) deg2rad(plannerPoses(:,3))];
         plannerPoses(end,3) = plannerPoses(end-1,3);
-        plannerPoses(1,:) = start_LocationOrg;
+        if plannerPoses(1,3) ~=start_LocationOrg(1,3)
+            warning('k¹t!!!!!!')
+        end
+        %plannerPoses(1,:) = start_LocationOrg;
 
         occupated = checkOccupied(costmapOrg, [plannerPoses(:,1:2) rad2deg(plannerPoses(:,3))] );
         if any(occupated)
-%             hold on 
-%             plot(plannerPoses(find(occupated==1), 1),plannerPoses(find(occupated==1), 2), 'og')
+%              hold on 
+%              plot(plannerPoses(find(occupated==1), 1),plannerPoses(find(occupated==1), 2), 'og')
             if any(occupated(end-2:end))
                  warning(['last positions in blocked area!!!:',num2str(find(occupated==1)'), 'length:', num2str(length(occupated)) ]); 
                  occupatedIndexes = find(occupated==1);
                  plannerPoses = plannerPoses(1:occupatedIndexes(1)-1, :);
+                 if isempty(plannerPoses)
+                     continue
+                 end
             else
                 warning(['poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]); 
             end
@@ -315,13 +323,14 @@ while true
         end
 
 
-end
+    end
     
     
     disp("Navigation to point...");
     
     hold on
     show(explo_map_occ,'FastUpdate', true);
+    axis(figAxis)
     hold on
     if exist('plannerPlot', 'var')
         delete(plannerPlot);
@@ -339,7 +348,7 @@ end
             delete(child_plot);
         end
         hold on
-        child_plot = plot(child(:,1),child(:,2), '.', 'Color', '#77AC30','DisplayName','Punkty eksploracyjne');
+        child_plot = plot(child(:,1),child(:,2), '.', 'Color', '#EDB120','DisplayName','Punkty eksploracyjne');
     end
     legend()
     
@@ -364,6 +373,7 @@ end
         
         hold on
         show(explo_map_occ,'FastUpdate', true);
+        axis(figAxis)
         hold on
         if exist('lidarPlot', 'var')
             delete(lidarPlot);
@@ -415,7 +425,7 @@ end
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
 
-show(explo_map_occ);
+
 %%
 disp("MAPPING DONE");
 figure

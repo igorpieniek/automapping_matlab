@@ -2,7 +2,7 @@ function FiltCircle = middle_points2(explo_map_occ, last_pose, midPoints)
 
 
 angleIncrement = 3;
-radiusPercentage = 0.9; % procent wyznaczonego promienia - kazdy promien jest pomniejszony
+radiusPercentage = 1; % procent wyznaczonego promienia - kazdy promien jest pomniejszony
 maxRange = 20; % to nie jest wazne bo i tak szukamy minimum
 
 avrgNum = 2;        % ilość pozycji z jakiej sprawdzana jest średnia

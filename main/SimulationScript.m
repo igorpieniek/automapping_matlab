@@ -24,10 +24,10 @@ MotionPrimitiveLength = 0.3;    % Dlugosc "odcinkow" / "³uków" w grafie (?)
    % mo¿na dodac wiecej parametrow planera - te sa podstawowe
    
    %Parametry plannera RRT*
-validationDistance = 0.3;
+validationDistance = 0.5;
 maxIterations = 10000;
 minTurningRadius = 0.001;
-maxConnectionDistance = 1;
+maxConnectionDistance = 0.5;
 
 robotSize = 0.2;
 robotRadiusOrg = 0.3;
