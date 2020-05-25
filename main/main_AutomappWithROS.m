@@ -70,7 +70,7 @@ simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykony
 
 %-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
 figure
-figAxis = [-7 2 -3 6];
+figAxis = [-5 3 -5 4];
 while true
     %%--------------- Czêœæ algortytmu odpowiadaj¹ca za rozgalezienia -------------
     
@@ -234,11 +234,12 @@ while true
                                     'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
 
             if plannerFirstIt
-                costmapOrg = copy(costmap);              
+                costmapOrg = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );          
                 stop_Location = changePointToClosest(temp_map, costmapOrg, stop_Location);
                 plannerFirstIt = false;
                 if isempty(stop_Location)
-                    disp('Cel zostal yznaczony mocno poza mapa')
+                    disp('Cel zostal wyznaczony mocno poza mapa')
+                    plannerStatus = False;
                     break
                 end
             end
@@ -295,12 +296,13 @@ while true
              diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
         end
         robotRadiusTemp = robotRadiusOrg;  
-        lengths = 0 : 0.15 : plannerPosesObj.Length;
+        lengths = 0 : 0.4 : plannerPosesObj.Length;
         plannerPoses  = interpolate(plannerPosesObj,lengths);
 
         plannerPoses = [plannerPoses(:,1:2) deg2rad(plannerPoses(:,3))];
         plannerPoses(end,3) = plannerPoses(end-1,3);
         if plannerPoses(1,3) ~=start_LocationOrg(1,3)
+            disp([rad2deg(plannerPoses(1,3)),rad2deg(start_LocationOrg(1,3)) ])
             warning('k¹t!!!!!!')
         end
         %plannerPoses(1,:) = start_LocationOrg;
@@ -399,6 +401,20 @@ while true
             warning('Vehicle left occupied area!')
             diffrentRadiusFlag = false;
             break
+        end
+        
+        % cyklicznie sprawdza czy œcie¿ka wraz z kolejnymi elementami na
+        % mapie jest okej, jak nie to ucina j¹
+        occupated = checkOccupied(costmap, [plannerPoses(:,1:2) rad2deg(plannerPoses(:,3))] );
+        if any(occupated) 
+            if any(occupated(end-2:end))
+                warning(['EXECUTE PART: last positions in blocked area !!!:',num2str(find(occupated==1)'), 'length:', num2str(length(occupated)) ]);
+                break
+            else
+                warning(['EXEC PART : poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]);
+                
+            end
+            
         end
         
         if checkOccupied(costmap, [realPoses(end,1:2) rad2deg(realPoses(end,3))])

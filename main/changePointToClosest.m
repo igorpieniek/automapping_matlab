@@ -1,7 +1,7 @@
 function point_out = changePointToClosest(occMap,costmap ,point)
 
 
-cellStep = 4*occMap.XLocalLimits(2) / (occMap.GridSize(1));
+cellStep = occMap.XLocalLimits(2) / (occMap.GridSize(1));
 maxRadius = 5 * cellStep;
 
 % hold on

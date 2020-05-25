@@ -92,7 +92,7 @@ end
     % dist rate : 1 - dist_rate / max_dist_rate
     % inter rate: false -> * 0.75, true -> *1.25
     % nastepnie wymnozenie wszystkiego
-    enclosed_rate = 1 - (enclosed_rate_temp./length(angles)); %OBUDOWANIE
+    enclosed_rate = 1;% - (enclosed_rate_temp./length(angles)); %OBUDOWANIE
     dist_rate = 1 - ( dist_rate_temp ./max(dist_rate_temp));  %DYSTANS MIEDZY OSTATNIM POLOZENIEM A PUNKTEM
     inter_rate = 1;%(inter_rate_temp +1) * 0.6; %CZY LINIA WYZNACZONA OD OSTATNIEGO PO£OZENIA DO PUNKTU EKSPLORACYNEGO NA COS WPADA CZY NIE
     
