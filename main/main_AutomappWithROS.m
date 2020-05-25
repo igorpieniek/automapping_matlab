@@ -239,7 +239,7 @@ while true
                 plannerFirstIt = false;
                 if isempty(stop_Location)
                     disp('Cel zostal wyznaczony mocno poza mapa')
-                    plannerStatus = False;
+                    plannerStatus = false;
                     break
                 end
             end
