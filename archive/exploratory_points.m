@@ -1,4 +1,4 @@
-function explo_points = exploratory_points(map, blocked_points)
+function [explo_points, explo_points_xy] = exploratory_points(map, blocked_points)
 
 %--------DANE POCZATKOWE--------------------------
 maxLidarRange = 6;
@@ -16,9 +16,19 @@ size_of_blockedArea = 0.1; %[m] promieñ obszaru wokó³ zablokowanego obszaru
 
 
 %---------------------------------------------------
-[scansSLAM,poses] = scansAndPoses(map);
-omap = buildMap(scansSLAM,poses,mapResolution,maxLidarRange);
-inflate(omap, 0.01);
+
+if isa(map, 'lidarSLAM')
+    [scansSLAM,poses] = scansAndPoses(map);
+    omap = buildMap(scansSLAM,poses,mapResolution,maxLidarRange);
+	inflate(omap, 0.01);
+elseif isa(map, 'occupancyMap')    
+    omap = copy(map);
+
+end
+
+if nargin==1
+    blocked_points=[];
+end
 
 
 %% Binaryzacja i transformata Hough'a
@@ -28,8 +38,24 @@ BinaryMap = custom_sum_filter(BinaryMap,3,2); % customowy filtr sumujacy
 [H,theta,rho] = hough(BinaryMap); 
 
  
-P = houghpeaks(H,30,'threshold',ceil(Hough_threshold*max(H(:))), 'NHoodSize', 2*floor(size(H)/NHood_divide)+1 ,'Theta', [-90:5:85]); % znalezienie punktów przeciecia linia na Houghie
+P = houghpeaks(H,80,'threshold',ceil(Hough_threshold*max(H(:))), 'NHoodSize', 2*floor(size(H)/NHood_divide)+1 ,'Theta', [-90:5:85]); % znalezienie punktów przeciecia linia na Houghie
 lines = houghlines(BinaryMap,theta,rho,P);%,'FillGap',3,'MinLength',8); %zaznaczenie lini na obrazie po prewicie
+
+figure
+show(omap)
+hold on
+for k = 1:length(lines)
+   xy = [lines(k).point1(2), lines(k).point1(1),; lines(k).point2(2), lines(k).point2(1)];
+   xy = grid2world(omap, [xy(1,:); xy(2,:)]);
+   hold on
+   if k == length(lines)
+      plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green','DisplayName','Wykryte linie');
+      break
+   end
+   plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green','HandleVisibility','off');
+
+end
+
 
 %% Wyznaczenie podejrzanych punktow próba 1
 
@@ -140,7 +166,10 @@ end
 
 
 %% Przejœcie z punktów we wspó³rzêdnych obrazu binarnego na wspó³rzêdne na mapie
-explo_points_xy = BinaryToMeters(explo_points, omap, BinaryMap );
+%explo_points_xy = BinaryToMeters(explo_points, omap, BinaryMap );
+explo_points_xy = grid2world(omap, round(explo_points(:,2:-1:1),0));
+hold on
+plot(explo_points_xy(:,1),explo_points_xy(:,2), '.r','MarkerSize',10, 'DisplayName','Potencjalne punkty eksploracyjne')
 %% Filtrowanie punktow lezacych za blisko przeszkód
 area_check = find(CheckArea_xy(explo_points_xy, omap, size_of_checkarea) ==  0); 
 explo_points_xy(area_check, :) = [];
@@ -152,6 +181,9 @@ explo_points_xy = Filter_close_points(explo_points_xy, omap, min_dist_between_ex
 explo_points_xy = Filter_blocked_points(explo_points_xy, blocked_points, size_of_blockedArea);
 
 %% Ocena punktów eksploracyjnych
-explo_points_xy = exploratory_points_rating(explo_points_xy, omap, poses(end,:)); 
+% explo_points_xy = exploratory_points_rating(explo_points_xy, omap, poses(end,:)); 
 
+hold on
+plot(explo_points_xy(:,1),explo_points_xy(:,2), '.b', 'MarkerSize',10, 'DisplayName','Punkty eksploracyjne po filtracji')
+legend()
 
