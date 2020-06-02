@@ -100,7 +100,7 @@ classdef HelperUtils
             RobotBodyFaceColor = RobotBody.FaceColor;
             
             robotPatch = patch(ax, RobotBodyTriangleVertices(1,:), ...
-                RobotBodyTriangleVertices(2,:), RobotBodyFaceColor);
+                RobotBodyTriangleVertices(2,:), RobotBodyFaceColor,'HandleVisibility','off');
         end
         
     end

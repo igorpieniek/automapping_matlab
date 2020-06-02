@@ -43,7 +43,7 @@ end
 mapResolution = 50;      % rozdzielczoœæ mapy 
 NumOfRays = 72; %64         % liczba promieni przypadaj¹ca na ka¿d¹ pozycjê
 
-ray_length = 2.1;          % promieñ sprawdzanego okrêgu pod wzglêdem przeszkód
+ray_length = 2;          % promieñ sprawdzanego okrêgu pod wzglêdem przeszkód
 MIN_DIST = 0.15;          % odlegosc miedzy ostatnio odnalezionymi punktami stycznosci z map¹
 ray_length_step = 0.3;   % krok z jakim odejmowana jest d³ugoœæ promienia w przypadku braku punktow eksploracyjnych
 size_of_checkarea = 0.2; % minimalna odleg³oœæ punktu eksploracyjnego od przeszkody

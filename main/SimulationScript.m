@@ -7,9 +7,9 @@ clear all
 %%-------------  PARAMETRY POCZ¥TKOWE  -----------------------------------------
 
 
-RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\mapa_paint5.png';     % Wczytywana rzeczywista mapa 
-MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
-startPoint = [1 1 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
+RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\sym_part1.png';     % Wczytywana rzeczywista mapa 
+MapResolution = 34;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
+startPoint = [1.3 0.8 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
 
 maxLidarRange = 12;               % [m]
 AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
@@ -41,7 +41,7 @@ ccConfigOrg = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusOr
 % Wyniki
 show_child_points = true;       % Aktualne przedstawienie wszystkich punktów rozgalezien
 show_robot_path = true;         % Wyswietlanie przebytej sciezki przez robota
-show_current_target = true;     % Wyswietlanie aktualego punktu uznanego jako cel do ktorego zostaje wyznaczona sciezka
+show_current_target = false;     % Wyswietlanie aktualego punktu uznanego jako cel do ktorego zostaje wyznaczona sciezka
 
 %%----------------- INICJALIZACJA --------------------------------------------------------------
 % Inicjalizacja ukrytej rzeczywistej mapy mapy
@@ -49,6 +49,7 @@ show_current_target = true;     % Wyswietlanie aktualego punktu uznanego jako ce
 grayimage = rgb2gray(imread(RealMap));
 bwimage = grayimage < 128;
 hide_map = occupancyMap(bwimage, MapResolution);
+show(hide_map)
 
 % Inicjacja nowej mapy
 explo_map = occupancyMap( (ones(size(grayimage))).*0.5, MapResolution);
@@ -81,7 +82,11 @@ viz = HelperUtils;          % zalaczenie narzedzi do wyœwietlania robota (byc mo
 
 simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykonywania programu
 
-% targetError = false;
+%%%%%%do legendy%%%%%%%%%%%
+backPlotFirst = true;
+headPlotFirst = true;
+exploPlotFirst = true;
+targetPlotFirst = true;
 
 %-------------------- GLÓWNA PÊTLA SYMULACJI---------------------------------------------------------------
 figure  
@@ -173,14 +178,23 @@ while true
 
         end
         hold on
-        child_plot = plot(child(:,1),child(:,2), '.b');
+        child_plot = plot(child(:,1),child(:,2), '.b','DisplayName','Punkty eksploracyjne');
+        legend()
+        
     end
     if ~isempty(target_point) && show_current_target
         if exist('target_plot', 'var')
             delete(target_plot);
         end
         hold on
-        target_plot = plot(target_point(1,1), target_point(1,2),'or');
+        target_plot = plot(target_point(1,1), target_point(1,2),'or','HandleVisibility','off');
+        
+        %poradzenie sobie z jedenorazow¹ legend¹
+        if targetPlotFirst
+            targetPlotFirst = false;
+            plot(target_point(1,1), target_point(1,2),'or','DisplayName','Aktualny cel')
+            legend()
+        end
     end
     
     % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
@@ -192,6 +206,10 @@ while true
     % Inicjalizacja planera
     disp("Planner START!");
     binMap = imbinarize(occupancyMatrix(explo_map),0.5);
+    se = strel('cube',4);
+    se2 = strel('cube',8);
+    binMap  = imerode(binMap ,se);
+    binMap  = imdilate(binMap ,se2);   
     temp_map = occupancyMap(binMap , MapResolution); %
     temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
     %inflate(temp_map, robotSize);
@@ -232,10 +250,11 @@ while true
 
             if plannerFirstIt
                 costmapOrg = copy(costmap);
-                stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
+%                 stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
                 plannerFirstIt = false;
                 if isempty(stop_Location)
                     disp('Cel zostal yznaczony mocno poza mapa')
+                    plannerStatus = false;
                     break
                 end
             end
@@ -281,18 +300,20 @@ while true
             break
         end
         
+        diffrentRadiusFlag = false;
+        if robotRadiusTemp ~= robotRadiusOrg
+             diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
+        end
+        robotRadiusTemp = robotRadiusOrg; 
+        
         if ~plannerStatus 
             continue
         end
         
         clear('plannerStatus')
         clear('plannerFirstIt')
-        diffrentRadiusFlag = false;
-        if robotRadiusTemp ~= robotRadiusOrg
-             diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
-        end
-        robotRadiusTemp = robotRadiusOrg;  
-        lengths = 0 : 0.18 : plannerPosesObj.Length;
+ 
+        lengths = 0 : 0.25 : plannerPosesObj.Length;
         [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
         refPoses2  = interpolate(plannerPosesObj);
 %         hold on
@@ -307,8 +328,8 @@ while true
         disp(num2str(checkPathValidity(plannerPosesObj,costmap)));
         occupated = checkOccupied(costmapOrg, [poses(:,1:2) rad2deg(poses(:,3))] );
         if any(occupated)
-            hold on 
-            plot(poses(find(occupated==1), 1),poses(find(occupated==1), 2), 'og')
+%             hold on 
+%             plot(poses(find(occupated==1), 1),poses(find(occupated==1), 2), 'og')
             if any(occupated(end-2:end))
                  warning(['last positions in blocked area!!!:',num2str(find(occupated==1)'), 'length:', num2str(length(occupated)) ]); 
                  occupatedIndexes = find(occupated==1);
@@ -401,10 +422,22 @@ while true
         if idx>1 && show_robot_path
             if goback_flag
                 hold on
-                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '.b');
+                if backPlotFirst
+                    backPlotFirst = false;
+                    plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-b', 'DisplayName', 'Œcie¿ka powrotna');
+                    legend()
+                else
+                    plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-b','HandleVisibility','off'); 
+                end
             else
                 hold on
-                plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '.r');
+                if headPlotFirst
+                    headPlotFirst = false;
+                    plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-r', 'DisplayName', 'Œcie¿ka');
+                    legend()
+                else
+                    plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-r','HandleVisibility','off' ); 
+                end
             end
         end
         drawnow

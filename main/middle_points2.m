@@ -5,8 +5,8 @@ angleIncrement = 3;
 radiusPercentage = 1; % procent wyznaczonego promienia - kazdy promien jest pomniejszony
 maxRange = 20; % to nie jest wazne bo i tak szukamy minimum
 
-avrgNum = 2;        % ilość pozycji z jakiej sprawdzana jest średnia
-riseCorrect = 0.25; % jezeli wyznaczony promien bedzie wiekszy o tyle od średniej z poprzednich pomiarow, 
+avrgNum = 4;        % ilość pozycji z jakiej sprawdzana jest średnia
+riseCorrect = 0.2; % jezeli wyznaczony promien bedzie wiekszy o tyle od średniej z poprzednich pomiarow, 
                     % dla tego kąta zostanie przypisana średnia
                     
 
