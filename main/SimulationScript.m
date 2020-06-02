@@ -162,17 +162,12 @@ while true
     last_pose_num  = length(all_poses(:,1));
     
     % Inicjalizacja planera
-    disp("Planner START!");
-    binMap = imbinarize(occupancyMatrix(explo_map),0.5);
-    se = strel('cube',4);
-    se2 = strel('cube',8);
-    binMap  = imerode(binMap ,se);
-    binMap  = imdilate(binMap ,se2);   
-    temp_map = occupancyMap(binMap , MapResolution); %
-    temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
+
+    temp_map = mapConversion(explo_map,MapResolution);
     
 
-    % PLANNER RRT*    
+    % PLANNER RRT*
+    disp("Planner START!");
     plannerStatus = true;
     plannerFirstIt = true;
     while true
@@ -331,9 +326,8 @@ while true
       
         % Sprawdzenie czy na wyznaczonej trasie nie pojawi³a siê przeszkoda
 
-        binMap = imbinarize(occupancyMatrix(explo_map),0.5);
-        temp_map = occupancyMap(binMap , MapResolution); %
-        temp_map.LocalOriginInWorld = explo_map.LocalOriginInWorld;
+        temp_map = mapConversion(explo_map,MapResolution);
+        
         costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );
         
         idx = idx + 1;

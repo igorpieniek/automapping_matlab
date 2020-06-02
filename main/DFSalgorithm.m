@@ -146,6 +146,7 @@ function [parentTochildRoute,...
 
     % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
     explo_points = [];
+    disp("Exploratory points search START!");
     explo_points = exploratory_points2(map, explo_points, lastPoseNum, allPoses, middlePoints, maxLidarRange,inflateRatio );
 
     % weryfikacja dzieci względem osiagnietych pozycji
