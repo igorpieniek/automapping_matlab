@@ -6,11 +6,19 @@ end
 
 %%  goBack function
 
-function [parentTochild_route, child, parentNum,targetPoint, gobackFlag, continueStatus  ]= goBack(parentTochild_route, child, parentNum )
+function [parentTochild_route, child, parentNum,targetPoint, gobackFlag, continueStatus  ]= goBack(parentTochild_route,...
+                                                                                                   child,...
+                                                                                                   parentNum,...
+                                                                                                   explo_map,...
+                                                                                                   all_poses,...
+                                                                                                   maxLidarRange  )
 
      % Usuniecie punktow - rodzicow będących punktami powrotnymi jezeli nie posiadaja dzieci - innych galezi
      to_delete = [];
      continueStatus = false;
+     targetPoint = [];
+     gobackFlag = true;
+     
      for p = 1 :  length(parentTochild_route(:,1))
          semeparent_number = find(child(:,3) == parentTochild_route(p,1)); % zebranie galezi o tym samym identyfikatorze rodzica
          if isempty(semeparent_number)
@@ -29,7 +37,7 @@ function [parentTochild_route, child, parentNum,targetPoint, gobackFlag, continu
          if ~isempty(temp)
 
              sameparent_points = child(temp,:);                                                                     % tworzy tymaczasową macierz dzieci posiadających tych samych rodziców
-             points_withrating = [exploratory_points_rating(sameparent_points(:,1:2), explo_map, startPoint, maxLidarRange) temp]; % macierz punktów w formacie [x y rate child_index]
+             points_withrating = [exploratory_points_rating(sameparent_points(:,1:2), explo_map, all_poses(end,:), maxLidarRange) temp]; % macierz punktów w formacie [x y rate child_index]
 
              [targetPoint, ~, target_num] = best_point(points_withrating(:,1:2), points_withrating(:,3));          % wyznaczenie punktu target
              child(points_withrating(target_num, 4), :) = [];                                                       % usuniecie z listy dzieci punktu target
@@ -44,7 +52,7 @@ end
 
 %%  goDeep function
 
-function [parentTochild_route, child, parentNum, newParentFlag, target_point, gobackFlag, continueFlag, breakStatus  ]= goDeep(parentTochild_route, ...
+function [parentTochild_route, child, parentNum, newParentFlag, target_point, gobackFlag, continueStatus, breakStatus  ]= goDeep(parentTochild_route, ...
                                                                                                                 child,...
                                                                                                                 parentNum,...
                                                                                                                 newParentFlag,...
@@ -55,7 +63,8 @@ function [parentTochild_route, child, parentNum, newParentFlag, target_point, go
                                                                                                                 maxLidarRange)
     gobackFlag = false;
     breakStatus = false;
-    continueFlag = false;
+    continueStatus = false;
+    target_point = [];
                                                                                                             
     if parentNum == 0                                                   % na początku gdy nie ma galezi nadpisywana jest pierwsza linijka
         parentTochild_route(end,:) =[ 0 allPoses(end,1:2)];
@@ -69,13 +78,13 @@ function [parentTochild_route, child, parentNum, newParentFlag, target_point, go
     explo_points = exploratory_points2(explo_map, explo_points, lastPoseNum, allPoses, middlePoints, maxLidarRange,0.05 );
 
     % weryfikacja dzieci względem osiagnietych pozycji
-    if ~isempty(child) && ~isempty(middle_Pt)
-        child = verify_PointsToPosses(child, middle_Pt);
+    if ~isempty(child) && ~isempty(middlePoints)
+        child = verify_PointsToPosses(child, middlePoints);
     end
 
     % weryfikacja punktów wzgledem osiagnietych pozycji
-    if ~isempty(explo_points) && ~isempty(middle_Pt)
-        explo_points = verify_PointsToPosses(explo_points,middle_Pt);
+    if ~isempty(explo_points) && ~isempty(middlePoints)
+        explo_points = verify_PointsToPosses(explo_points,middlePoints);
     end
 
 
@@ -85,7 +94,7 @@ function [parentTochild_route, child, parentNum, newParentFlag, target_point, go
             return;
         else
             gobackFlag = true; % jezeli nie ma punktow eksploraycjnych ale sa punkty dzieci zostaje rozpoczeta sekwencja powrotna
-            continueFlag = true;
+            continueStatus = true;
             return;
         end
     else
