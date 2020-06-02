@@ -55,7 +55,7 @@ show(hide_map)
 explo_map = occupancyMap( (ones(size(grayimage))).*0.5, MapResolution);
 
 % Inicjalizacja wirtualnego lidaru oraz jego parametrów
-rangefinder = rangeSensor('HorizontalAngle', AngleRangeBoundaries,'RangeNoise', RangeNoise,'Range' , [0 maxLidarRange]);
+rangefinder = rangieSensor('HorizontalAngle', AngleRangeBoundaries,'RangeNoise', RangeNoise,'Range' , [0 maxLidarRange]);
 numReadings = rangefinder.NumReadings;
 
 last_pose_num  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
@@ -339,51 +339,7 @@ while true
             end
             
         end
-
-       
-    elseif plannerType == "A*  " 
-        start_local = local2grid(temp_map, start_Location(end,1:2));
-        stop_local = local2grid(temp_map, stop_Location(end,1:2));
-        temp_map_local =  imbinarize( occupancyMatrix(temp_map), 0.51) ;
-        map_size = size(temp_map_local);
-        goalReg = int8(zeros(map_size(1), map_size(2)));
-        goalReg(stop_local(1), stop_local(2)) = 1;
-        %path_local = ASTARPATH(start_local(2),start_local(1), temp_map_local, goalReg,5 );
-        load NeighboorsTable2 NeighboorsTable
-        Neighboors=NeighboorsTable{10};
-        try
-            path_local = ASTARPATH2SIDED(start_local(2),start_local(1), temp_map_local, stop_local(2), stop_local(1),10 ,Neighboors );
-        catch er
-            warning(['A* ma problem z wyznaczeniem punktu: ', er.identifier])
-            continue
-        end
-         %         figure
-%         imshow(temp_map_local)
-%         hold on
-%         plot(path_local(1,2),path_local(1,1),'o','color','k')
-%         plot(stop_local(end,2),stop_local(end,1),'o','color','b')
-%         plot(path_local(:,2),path_local(:,1),'.r')
-%         legend('Goal','Start','Path')
-        poses = [];
-        tempposes=[];
-        for i = 1:length(path_local(:,1))
-            globPoses = grid2world(temp_map, path_local(i,:));
-            tempposes = [tempposes; globPoses];
-        end
-        for i = 1: length(path_local(:,1))-1
-            angle = Angle2Points( tempposes(i,:),  tempposes(i+1,:));
-            if i == 1
-                prevAngle = angle;
-            end         
-            if abs(prevAngle-angle)>pi/2
-                angle = prevAngle;
-            end
-            prevAngle = angle;
-            poses = [poses; tempposes(i,:), angle];
-        end 
-        poses = [poses; tempposes(end,:), poses(end,3)];
-        
-        
+     
     else
         error("Nieodpowiednia nazwa plannera- tylko RRT* lub A*");
     end
@@ -469,7 +425,6 @@ while true
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
 
-show(explo_map);
 %%
 disp("MAPPING DONE");
 figure
