@@ -78,6 +78,9 @@ parentTochild_route = [];   % macierz na zapisywanie punktów po ktorych robot mo
 parentTochild_route = [0 startPoint(1,1:2)]; % dodanie pierwszego punktu powrotnego
 RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania trasy
 
+exploratoryInflateRatio = 0.05; % wspó³czynnik funkcji inflate potrzebny przy przetwarzaniu aktualnej mapy w g³ównej funkcji wyszukuj¹cej obszary
+                                % do eksploracji - exploratory_points2
+
 DFS = DFSalgorithm;         % za³¹czenie funkcji algorytmu DFS zbudowanego na potrzeby skryptu
 viz = HelperUtils;          % zalaczenie narzedzi do wyœwietlania robota (byc moze do wyrzucenia - teraz korzysta tylko ze znacznika robota)
 
@@ -108,38 +111,7 @@ while true
         if continueStatus
             continue
         end
-%         % Usuniecie punktow - rodzicow bêd¹cych punktami powrotnymi jezeli nie posiadaja dzieci - innych galezi
-%         to_delete = [];
-%         for p = 1 :  length(parentTochild_route(:,1))
-%             semeparent_number = find(child(:,3) == parentTochild_route(p,1)); % zebranie galezi o tym samym identyfikatorze rodzica
-%             if isempty(semeparent_number)
-%                 to_delete(1,end+1) = p;                                       % w przypadku braku galezi o danym identyfikatorze, zostaje zapisany nr identyfikatora
-%             end
-%         end
-%         to_delete = unique(to_delete);
-%         parentTochild_route(to_delete,:) = [];                                % usuniêcie punktow o zapisanym identyfikatorze
-% 
-%         
-%         if  parentTochild_route(end,1) == parentNum && length(parentTochild_route(:,1))>1 %jezeli operujemy caly czas na tym samym identyfikatorze rodzica
-%             target_point = parentTochild_route(end,2:3); % wyznaczenie aktualnego celu jako ostatneigu punktu z listy punktow powrotnych
-%             parentTochild_route(end, :) = [];
-%         else
-%             temp = find(child(:,3) == parentNum); % zebranie punktow galezi (dzieci) o tym samym identyfikatorze rodzica dla aktualnego identyfikatora
-%             if ~isempty(temp)
-%                 
-%                 sameparent_points = child(temp,:);                                                                     % tworzy tymaczasow¹ macierz dzieci posiadaj¹cych tych samych rodziców                
-%                 points_withrating = [exploratory_points_rating(sameparent_points(:,1:2), explo_map, startPoint, maxLidarRange) temp]; % macierz punktów w formacie [x y rate child_index]
-%                 
-%                 [target_point, ~, target_num] = best_point(points_withrating(:,1:2), points_withrating(:,3));          % wyznaczenie punktu target
-%                 child(points_withrating(target_num, 4), :) = [];                                                       % usuniecie z listy dzieci punktu target
-%                 
-%                 goback_flag = false;                                                                                   % powrot do punktu - rodzica zostal zakonczony
-%             else
-%                 parentNum = parentNum -1;                                                                              % jezeli nie ma galezi (dzieci) dla danego identyfikatora rodzica
-%                 continue;
-%             end
-%         end
-        
+
     else % flaga o powrocie do punktu rozgalezienia nie zostala podniesiona
         [parentTochild_route,...
             child,...
@@ -156,55 +128,13 @@ while true
                                         explo_map,...
                                         last_pose_num ,...
                                         middle_Pt,...
-                                        maxLidarRange);
+                                        maxLidarRange,...
+                                        exploratoryInflateRatio);
         if continueStatus
             continue
         elseif breakStatus
             break
-        end
-            
-%             
-%         if parentNum == 0                                                   % na pocz¹tku gdy nie ma galezi nadpisywana jest pierwsza linijka
-%             parentTochild_route(end,:) =[ 0 all_poses(end,1:2)];
-%         elseif newParent_flag
-%             parentTochild_route(end+1,:) =[ parentNum  all_poses(end,1:2)]; % dopisywany jest kolejny rodzic, ale tylko przy zwiêkszeniu identyfikatora rodzica
-%             newParent_flag = false;
-%         end
-%         
-%         % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
-%         explo_points = [];
-%         explo_points = exploratory_points2(explo_map, explo_points, last_pose_num, all_poses, middle_Pt, maxLidarRange,0.05 );
-%         
-%         % weryfikacja dzieci wzglêdem osiagnietych pozycji
-%         if ~isempty(child) && ~isempty(middle_Pt)
-%             child = verify_PointsToPosses(child, middle_Pt);
-%         end
-%         
-%         % weryfikacja punktów wzgledem osiagnietych pozycji
-%         if ~isempty(explo_points) && ~isempty(middle_Pt)
-%             explo_points = verify_PointsToPosses(explo_points,middle_Pt);
-%         end
-%         
-%         
-%         if isempty(explo_points) %jezeli po tej operacji nie ma ani punktow-dzieci ani punktow eksploracyjnych mapowanie zostaje zakonczone
-%             if isempty(child)
-%                 break;
-%             else
-%                 goback_flag = true; % jezeli nie ma punktow eksploraycjnych ale sa punkty dzieci zostaje rozpoczeta sekwencja powrotna
-%                 continue;
-%             end
-%         else
-%             if length(explo_points(:,1)) > 1
-%                 
-%                 parentNum = parentNum +1;
-%                 newParent_flag = true;
-%                 [target_point, explo_points, ~] = best_point(explo_points(:,1:2), explo_points(:,3));
-%                 child = [child ; explo_points(:,1:2) repmat(parentNum, length(explo_points(:,1)), 1)];
-%                 
-%             else
-%                 target_point =  explo_points(1,1:2) ;
-%             end
-%         end
+        end        
     end
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     % Aktualizacja wyswietlania wynikow
