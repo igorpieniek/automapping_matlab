@@ -100,7 +100,7 @@ function [path,...
             else
                 robotRadiusTemp = robotRadiusTemp - robotRadiusConfig.step; 
             end
-            start_Location(3) = start_Location(3) + pi/2; %sztuczna zmiana orientacji (próba wyznaczenia ścieżki za wszelką cene)
+            start(3) = start(3) + pi/2; %sztuczna zmiana orientacji (próba wyznaczenia ścieżki za wszelką cene)
             continue
         end
 
