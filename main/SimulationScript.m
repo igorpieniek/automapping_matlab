@@ -145,7 +145,7 @@ while true
         end
     end
     
-    % Przypisanie punktu pocz¹tkowego i koncowego wraz z wyznaczeniem k¹ta
+    % Okreœlenie aktualnego celu oraz punktu startowego
     start_Location = startPoint;
     stop_Location = [target_point Angle2Points(startPoint(1,1:2), target_point(1,1:2) )];
     

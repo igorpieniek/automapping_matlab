@@ -1,4 +1,4 @@
-function map = Lidar_Init
+function map = Lidar_Init(maxLidarRange, mapResolution )
 
 maxLidarRange = 8;
 mapResolution =35;
