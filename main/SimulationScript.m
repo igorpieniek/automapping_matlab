@@ -1,11 +1,8 @@
-% V3 - dzia³aj¹ca, poprawiony powrót do rodzica
-
 clc
 close all
-clear all
+clear 
 
 %%-------------  PARAMETRY POCZ¥TKOWE  -----------------------------------------
-
 
 RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\sym_part1.png';     % Wczytywana rzeczywista mapa 
 MapResolution = 34;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
@@ -26,10 +23,9 @@ plannerConfig.minTurningRadius = 0.001;
 plannerConfig.goalTolerance = [0.2, 0.2, 360];
 pathPointsDistance = 0.25;
 
+% wymiary pojazdu
 vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
 ccConfigOrg = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusConfig.original, 'NumCircles',1);
-
-
 
 % Wyniki
 show_childPoints = true;       % Aktualne przedstawienie wszystkich punktów rozgalezien
@@ -38,7 +34,6 @@ show_target = false;     % Wyswietlanie aktualego punktu uznanego jako cel do kt
 
 %%----------------- INICJALIZACJA --------------------------------------------------------------
 % Inicjalizacja ukrytej rzeczywistej mapy mapy
-
 grayimage = rgb2gray(imread(RealMap));
 bwimage = grayimage < 128;
 hideMap = occupancyMap(bwimage, MapResolution);
@@ -61,7 +56,7 @@ insertRay(exploMap,  startPoint, ranges, angles,  rangefinder.Range(end));
 
 
 % Inicjalizacja zmiennych potrzebnych w g³ównej pêtli 
-parentNum = 0;              % identyfikator rodzica danej galezi 
+parentNum = 0;             % identyfikator rodzica danej galezi 
 newParentFlag = false;     % flaga podnoszona przy odnalezieniu rozgalezienia
 gobackFlag = false;        % flaga podnoszona przy braku nowych punktow dla danej galezi - prowadzi do powrotu do punktu rozgalezienia
 exploPoints = [];                 % macierz na punkty rozgalezien dla danego identyfikatora rozgalezienia (rodzica)
@@ -76,12 +71,9 @@ exploratoryInflateRatio = 0.05; % wspó³czynnik funkcji inflate potrzebny przy pr
 DFS = DFSalgorithm;         % za³¹czenie funkcji algorytmu DFS zbudowanego na potrzeby skryptu
 viz = HelperUtils;          % zalaczenie narzedzi do wyœwietlania robota (byc moze do wyrzucenia - teraz korzysta tylko ze znacznika robota)
 
-
-
-% Obejœcie legedny- dziêki temu przy wyœwietlaniu legendy informacja pojawia sie tylko raz
+% Obejœcie legedy na wykresie - dziêki temu przy wyœwietlaniu legendy informacja pojawia sie tylko raz
 backPlotFirst = true;
 headPlotFirst = true;
-exploPlotFirst = true;
 targetPlotFirst = true;
 
 % Rozpoczêcie pomiaru czasu wykonywania
@@ -91,7 +83,7 @@ figure
 while true
     %%--------------- Czêœæ algortytmu odpowiadaj¹ca za rozgalezienia - algorytm DFS -------------
     
-    if gobackFlag % powrot do rodzica
+    if gobackFlag % flaga o powrocie do punktu rozgalezienia zostala podniesiona
         [parentTochildRoute,...
             exploPoints, parentNum,...
             target_point,...
@@ -106,14 +98,13 @@ while true
             continue
         end
 
-    else % flaga o powrocie do punktu rozgalezienia nie zostala podniesiona
+    else 
         [parentTochildRoute,...
             exploPoints,...
             parentNum,...
             newParentFlag,...
             target_point,...
             gobackFlag,...
-            continueStatus,...
             breakStatus  ] = DFS.goDeep(parentTochildRoute, ...
                                         exploPoints,...
                                         parentNum,...
@@ -124,7 +115,7 @@ while true
                                         middlePoints,...
                                         maxLidarRange,...
                                         exploratoryInflateRatio);
-        if continueStatus
+        if gobackFlag
             continue
         elseif breakStatus
             break
@@ -158,11 +149,11 @@ while true
     start_Location = startPoint;
     stop_Location = [target_point Angle2Points(startPoint(1,1:2), target_point(1,1:2) )];
     
+    % Zapisanie numeru ostatniej zapsianej pozycji
     lastPoseNum  = length(allPoses(:,1));
     
-    % Inicjalizacja planera
-
-    temp_map = mapConversion(exploMap,MapResolution);
+    % Konwersja aktualnej mapy
+    temp_map = mapConversion(exploMap, MapResolution);
     
 
     % PLANNER RRT*
@@ -178,11 +169,9 @@ while true
         continue;
     end
 
-    
     % Pocz¹tek przemieszczenia pojazdu do zadanego punktu
     disp("Navigation to point...");
     idx =1;
-    tic
     while idx <= size(path,1)
         ranges = [];
         angles = [];
@@ -193,7 +182,8 @@ while true
         
         % Zapisanie aktualnej pozycji robota
         allPoses(end+1,:) = path(idx,:); % odczytanie ostatniej pozycji i dopisanie jej do tablicy wszystkich pozycji
-        %middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:), middle_Pt);
+        
+        % Dodanie kolejnych okrêgów filtruj¹cych
         middlePoints(end+1,:) = middle_points2(exploMap, allPoses(end,:), middlePoints);
 
         
@@ -209,7 +199,7 @@ while true
         robot_plot = viz.plotRobot(gca, allPoses(end,:), 0.5);
      
         % Aktualizacja przejechanej sciezki (o ile potrzebna)
-        if idx>1 && show_robotPath
+        if idx > 1 && show_robotPath
             if gobackFlag
                 hold on
                 if backPlotFirst
@@ -231,22 +221,23 @@ while true
             end
         end
         drawnow
-      
-        % Sprawdzenie czy na wyznaczonej trasie nie pojawi³a siê przeszkoda
-
-        temp_map = mapConversion(exploMap,MapResolution);
-        
-        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );
         
         idx = idx + 1;
         
+        % Konwersja aktualnej wersji mapy - do weryfikacji
+        temp_map = mapConversion(exploMap,MapResolution);
+        
+        % Uworzenie aktualnej mapy kosztów - wzglêdem orginalnej wielkosci marginesu
+        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );    
+        
+        % Sprawdzenie czy na wyznaczonej trasie nie pojawi³a siê przeszkoda
         if differentRadiusFlag && checkFree(costmap, [allPoses(end,1:2) rad2deg(allPoses(end,3))])
             warning('Vehicle left occupied area!')
-
             differentRadiusFlag = false;
             break
         end
         
+        % Informacja o przebiegu œcie¿ki przez oszar zajêty wed³ug aktualnej mapy kosztów
         if checkOccupied(costmap, [allPoses(end,1:2) rad2deg(allPoses(end,3))])
             disp("ROUTE OCCUPIED ")
         end
@@ -256,15 +247,15 @@ while true
     startPoint =  allPoses(end,:); % dodanie jako kolejnej pozycji startowej ostatniej osi¹gniêtej pozycji - aktulanej pozycji robota
     
 end
-toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
-
-%%
 disp("MAPPING DONE");
+toc(simulation_time) % zatrzymanie timera i wyœwietlenie czasu symulacji
+
+%% Wyœwietlenie wyników
+
 figure
 subplot(1,2,1)
 show(hideMap);
 title("Rzeczywista mapa")
-
 subplot(1,2,2)
 show(exploMap);
 title("Ukonczona  mapa po symulacji")
