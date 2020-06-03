@@ -244,7 +244,6 @@ while true
 
     lengths = 0 : 0.25 : plannerPosesObj.Length;
     [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
-    refPoses2  = interpolate(plannerPosesObj);
 %         hold on
 %         plot(planner)
 %         legend('hide')
