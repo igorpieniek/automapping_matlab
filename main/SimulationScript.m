@@ -168,105 +168,127 @@ while true
 
     % PLANNER RRT*
     disp("Planner START!");
-    plannerStatus = true;
-    plannerFirstIt = true;
-    while true
-        ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
-        costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
-
-        planner = pathPlannerRRT(costmap, 'MaxIterations',maxIterations,'ConnectionDistance',maxConnectionDistance, ...
-                                'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
-
-        if plannerFirstIt
-            costmapOrg = copy(costmap);
-%                 stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
-            plannerFirstIt = false;
-            if isempty(stop_Location)
-                disp('Cel zostal yznaczony mocno poza mapa')
-                plannerStatus = false;
-                break
-            end
-        end
-
-
-        if exist('plannerPosesObj', 'var')
-            clear plannerPosesObj
-        end
-
-        try
-        [plannerPosesObj,tree] = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
-                                       [stop_Location(1:2), rad2deg(stop_Location(3))]);        
-        catch er
-            warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier, er.message]);
-            if robotRadiusTemp <=0.06
-                plannerStatus= false;
-                break
-            end
-            if ~exist('plannerPosesObj', 'var')
-                robotRadiusTemp = robotRadiusTemp - 0.02;
-                continue;   
-            else
-                disp('error sie pojawi³ ale mamy obiekt')
-            end
-
-        end
-        if plannerPosesObj.Length == 0
-            warning('Planner return length=0 path!')
-            if robotRadiusTemp <=0.06
-                plannerStatus= false;
-                break
-            else
-                robotRadiusTemp = robotRadiusTemp - 0.02; %%%%%%%%%%%%%%%%%%
-            end
-            start_Location(3) = start_Location(3) +pi/2; 
-            continue
-        end
-
-        if ~checkPathValidity(plannerPosesObj,costmap)
-            disp('path NOT VALID!!!!!')
-        end
-
-        break
+    robotRadiusConfig.original = 0.3;
+    robotRadiusConfig.step = 0.02;
+    robotRadiusConfig.min = 0.06;
+    plannerConfig.maxIterations = maxIterations;
+    plannerConfig.ConnectionDistance = maxConnectionDistance;
+    plannerConfig.minTurningRadius = minTurningRadius;
+    plannerConfig.goalTolerance = [0.2, 0.2, 360];
+    pathPointsDistance = 0.25;
+    
+    [path,differentRadiusFlag] = configuredRRTplanner(start_Location,...
+                                                      stop_Location,...
+                                                      vehDim,...
+                                                      robotRadiusConfig,...
+                                                      temp_map,...
+                                                      plannerConfig,...
+                                                      pathPointsDistance);
+    if isempty(path)
+        continue;
     end
-
-    diffrentRadiusFlag = false;
-    if robotRadiusTemp ~= robotRadiusOrg
-         diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
-    end
-    robotRadiusTemp = robotRadiusOrg; 
-
-    if ~plannerStatus 
-        continue
-    end
-
-    clear('plannerStatus')
-    clear('plannerFirstIt')
-
-    lengths = 0 : 0.25 : plannerPosesObj.Length;
-    [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
-%         hold on
-%         plot(planner)
-%         legend('hide')
-
-    poses = refPoses;
-    poses = [poses(:,1:2) deg2rad(poses(:,3))];
-    poses(end,3) = poses(end-1,3);
-    %poses = [start_Location; poses];  
-
-    disp(num2str(checkPathValidity(plannerPosesObj,costmap)));
-    occupated = checkOccupied(costmapOrg, [poses(:,1:2) rad2deg(poses(:,3))] );
-    if any(occupated)
-%             hold on 
-%             plot(poses(find(occupated==1), 1),poses(find(occupated==1), 2), 'og')
-        if any(occupated(end-2:end))
-             warning(['last positions in blocked area!!!:',num2str(find(occupated==1)'), 'length:', num2str(length(occupated)) ]); 
-             occupatedIndexes = find(occupated==1);
-             poses = poses(1:occupatedIndexes(1)-1, :);
-        else
-            warning(['poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]); 
-        end
-
-    end
+    
+    
+    
+%     plannerStatus = true;
+%     plannerFirstIt = true;
+%     while true
+%         ccConfig = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusTemp, 'NumCircles',1);
+%         costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfig );
+% 
+%         planner = pathPlannerRRT(costmap, 'MaxIterations',maxIterations,'ConnectionDistance',maxConnectionDistance, ...
+%                                 'MinTurningRadius',minTurningRadius,'GoalTolerance', [0.2, 0.2, 360], 'ConnectionMethod', 'Dubins');
+% 
+%         if plannerFirstIt
+%             costmapOrg = copy(costmap);
+% %                 stop_Location = changePointToClosest(temp_map, costmap, stop_Location);
+%             plannerFirstIt = false;
+%             if isempty(stop_Location)
+%                 disp('Cel zostal yznaczony mocno poza mapa')
+%                 plannerStatus = false;
+%                 break
+%             end
+%         end
+% 
+% 
+%         if exist('plannerPosesObj', 'var')
+%             clear plannerPosesObj
+%         end
+% 
+%         try
+%         [plannerPosesObj,tree] = plan(planner,[start_Location(1:2), rad2deg(start_Location(3))], ...
+%                                        [stop_Location(1:2), rad2deg(stop_Location(3))]);        
+%         catch er
+%             warning(['RRT* nie moze wyznaczyc trasy, powod : ', er.identifier, er.message]);
+%             if robotRadiusTemp <=0.06
+%                 plannerStatus= false;
+%                 break
+%             end
+%             if ~exist('plannerPosesObj', 'var')
+%                 robotRadiusTemp = robotRadiusTemp - 0.02;
+%                 continue;   
+%             else
+%                 disp('error sie pojawi³ ale mamy obiekt')
+%             end
+% 
+%         end
+%         if plannerPosesObj.Length == 0
+%             warning('Planner return length=0 path!')
+%             if robotRadiusTemp <=0.06
+%                 plannerStatus= false;
+%                 break
+%             else
+%                 robotRadiusTemp = robotRadiusTemp - 0.02; %%%%%%%%%%%%%%%%%%
+%             end
+%             start_Location(3) = start_Location(3) +pi/2; 
+%             continue
+%         end
+% 
+%         if ~checkPathValidity(plannerPosesObj,costmap)
+%             disp('path NOT VALID!!!!!')
+%         end
+% 
+%         break
+%     end
+% 
+%     diffrentRadiusFlag = false;
+%     if robotRadiusTemp ~= robotRadiusOrg
+%          diffrentRadiusFlag = true; %flag to infrorm if the radius (margin) changed
+%     end
+%     robotRadiusTemp = robotRadiusOrg; 
+% 
+%     if ~plannerStatus 
+%         continue
+%     end
+% 
+%     clear('plannerStatus')
+%     clear('plannerFirstIt')
+% 
+%     lengths = 0 : 0.25 : plannerPosesObj.Length;
+%     [refPoses,refDirections]  = interpolate(plannerPosesObj,lengths);
+% %         hold on
+% %         plot(planner)
+% %         legend('hide')
+% 
+%     poses = refPoses;
+%     poses = [poses(:,1:2) deg2rad(poses(:,3))];
+%     poses(end,3) = poses(end-1,3);
+%     %poses = [start_Location; poses];  
+% 
+%     disp(num2str(checkPathValidity(plannerPosesObj,costmap)));
+%     occupated = checkOccupied(costmapOrg, [poses(:,1:2) rad2deg(poses(:,3))] );
+%     if any(occupated)
+% %             hold on 
+% %             plot(poses(find(occupated==1), 1),poses(find(occupated==1), 2), 'og')
+%         if any(occupated(end-2:end))
+%              warning(['last positions in blocked area!!!:',num2str(find(occupated==1)'), 'length:', num2str(length(occupated)) ]); 
+%              occupatedIndexes = find(occupated==1);
+%              poses = poses(1:occupatedIndexes(1)-1, :);
+%         else
+%             warning(['poses in occupated area!! Poses number:',num2str(find(occupated==1)') ]); 
+%         end
+% 
+%     end
 
 
     
@@ -274,16 +296,16 @@ while true
     disp("Navigation to point...");
     idx =1;
     tic
-    while idx <= size(poses,1)
+    while idx <= size(path,1)
         ranges = [];
         angles = [];
         
         % Kolejne pomiary dla kolejnych pozycji i do³¹czanie ich do mapy
-        [ranges, angles] = rangefinder(poses(idx,:), hide_map);
-        insertRay(explo_map, poses(idx,:), ranges, angles, rangefinder.Range(end));
+        [ranges, angles] = rangefinder(path(idx,:), hide_map);
+        insertRay(explo_map, path(idx,:), ranges, angles, rangefinder.Range(end));
         
         % Zapisanie aktualnej pozycji robota
-        all_poses(end+1,:) = poses(idx,:); % odczytanie ostatniej pozycji i dopisanie jej do tablicy wszystkich pozycji
+        all_poses(end+1,:) = path(idx,:); % odczytanie ostatniej pozycji i dopisanie jej do tablicy wszystkich pozycji
         %middle_Pt(end+1,:) = middle_points(explo_map, angles, ranges, all_poses(end,:), middle_Pt);
         middle_Pt(end+1,:) = middle_points2(explo_map, all_poses(end,:), middle_Pt);
 
@@ -305,19 +327,19 @@ while true
                 hold on
                 if backPlotFirst
                     backPlotFirst = false;
-                    plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-b', 'DisplayName', 'Œcie¿ka powrotna');
+                    plot(path(idx-1 : idx ,1), path(idx-1 :idx,2), '-b', 'DisplayName', 'Œcie¿ka powrotna');
                     legend()
                 else
-                    plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-b','HandleVisibility','off'); 
+                    plot(path(idx-1 : idx ,1), path(idx-1 :idx,2), '-b','HandleVisibility','off'); 
                 end
             else
                 hold on
                 if headPlotFirst
                     headPlotFirst = false;
-                    plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-r', 'DisplayName', 'Œcie¿ka');
+                    plot(path(idx-1 : idx ,1), path(idx-1 :idx,2), '-r', 'DisplayName', 'Œcie¿ka');
                     legend()
                 else
-                    plot(poses(idx-1 : idx ,1), poses(idx-1 :idx,2), '-r','HandleVisibility','off' ); 
+                    plot(path(idx-1 : idx ,1), path(idx-1 :idx,2), '-r','HandleVisibility','off' ); 
                 end
             end
         end
@@ -331,10 +353,10 @@ while true
         
         idx = idx + 1;
         
-        if diffrentRadiusFlag && checkFree(costmap, [all_poses(end,1:2) rad2deg(all_poses(end,3))])
+        if differentRadiusFlag && checkFree(costmap, [all_poses(end,1:2) rad2deg(all_poses(end,3))])
             warning('Vehicle left occupied area!')
 
-            diffrentRadiusFlag = false;
+            differentRadiusFlag = false;
             break
         end
         
