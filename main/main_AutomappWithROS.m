@@ -39,30 +39,32 @@ pathIndex = 0;
 %%----------------- INICJALIZACJA --------------------------------------------------------------
 
 % Inicjacja nowej mapy
-explo_map = Lidar_Init();
+exploMap = Lidar_Init();
 
 
 % Pierwszy pomiar w punkcie startowym
 Lidar_subscriber = rossubscriber('/scan');
-explo_map = LidarAq(explo_map, Lidar_subscriber);
-[explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
+exploMap = LidarAq(exploMap, Lidar_subscriber);
+[exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
 
 
-last_pose_num  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
-explo_points=[];    % tablica na punkty eksploracyjne
-all_plannerPoses = [];
+lastPoseNum  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
+allPlannerPoses = [];
+exploratoryInflateRatio = 0.05; % wspó³czynnik funkcji inflate potrzebny przy przetwarzaniu aktualnej mapy w g³ównej funkcji wyszukuj¹cej obszary
+                                % do eksploracji - exploratory_points2
 
 
 % Inicjalizacja zmiennych potrzebnych w g³ównej pêtli 
 parentNum = 0;              % identyfikator rodzica danej galezi 
-newParent_flag = false;     % flaga podnoszona przy odnalezieniu rozgalezienia
-goback_flag = false;        % flaga podnoszona przy braku nowych punktow dla danej galezi - prowadzi do powrotu do punktu rozgalezienia
-child = [];                 % macierz na punkty rozgalezien dla danego identyfikatora rozgalezienia (rodzica)
-middle_Pt = [];             % macierz na "punkty srodkowe" - do okreslenia obszarow zablokowanych dla wyszukiwania punktow eksploracyjnych (sposob filtracji)
-parentTochild_route = [];   % macierz na zapisywanie punktów po ktorych robot moze wrocic do rozgalezienia z ktorego wychodzi galaz na ktorej sie aktualnie znajduje
-parentTochild_route = [0 realPoses(end,1:2)]; % dodanie pierwszego punktu powrotnego
+newParentFlag = false;     % flaga podnoszona przy odnalezieniu rozgalezienia
+gobackFlag = false;        % flaga podnoszona przy braku nowych punktow dla danej galezi - prowadzi do powrotu do punktu rozgalezienia
+exploPoints = [];                 % macierz na punkty rozgalezien dla danego identyfikatora rozgalezienia (rodzica)
+middlePoints = [];             % macierz na "punkty srodkowe" - do okreslenia obszarow zablokowanych dla wyszukiwania punktow eksploracyjnych (sposob filtracji)
+parentTochildRoute = [];   % macierz na zapisywanie punktów po ktorych robot moze wrocic do rozgalezienia z ktorego wychodzi galaz na ktorej sie aktualnie znajduje
+parentTochildRoute = [0 realPoses(end,1:2)]; % dodanie pierwszego punktu powrotnego
 RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania trasy
 
+DFS = DFSalgorithm;
 
 simulation_time = tic;      % pomiar czasu symulacji - zwracany na koniec wykonywania programu
 
@@ -74,88 +76,50 @@ figAxis = [-5 3 -5 4];
 while true
     %%--------------- Czêœæ algortytmu odpowiadaj¹ca za rozgalezienia -------------
     
-    if goback_flag % powrot do rodzica
-        
-        % Usuniecie punktow - rodzicow bêd¹cych punktami powrotnymi jezeli nie posiadaja dzieci - innych galezi
-        to_delete = [];
-        for p = 1 :  length(parentTochild_route(:,1))
-            semeparent_number = find(child(:,3) == parentTochild_route(p,1)); % zebranie galezi o tym samym identyfikatorze rodzica
-            if isempty(semeparent_number)
-                to_delete(1,end+1) = p;                                       % w przypadku braku galezi o danym identyfikatorze, zostaje zapisany nr identyfikatora
-            end
-        end
-        to_delete = unique(to_delete);
-        parentTochild_route(to_delete,:) = [];                                % usuniêcie punktow o zapisanym identyfikatorze
-
-        
-        if  length(parentTochild_route(:,1))>1 && parentTochild_route(end,1) == parentNum  %jezeli operujemy caly czas na tym samym identyfikatorze rodzica
-            target_point = parentTochild_route(end,2:3); % wyznaczenie aktualnego celu jako ostatneigu punktu z listy punktow powrotnych
-            parentTochild_route(end, :) = [];
-        else
-            temp = find(child(:,3) == parentNum); % zebranie punktow galezi (dzieci) o tym samym identyfikatorze rodzica dla aktualnego identyfikatora
-            if ~isempty(temp)
-                
-                sameparent_points = child(temp,:);                                                                     % tworzy tymaczasow¹ macierz dzieci posiadaj¹cych tych samych rodziców                
-                points_withrating = [exploratory_points_rating(sameparent_points(:,1:2), explo_map_occ, realPoses(end, :), maxLidarRange) temp]; % macierz punktów w formacie [x y rate child_index]
-                
-                [target_point, ~, target_num] = best_point(points_withrating(:,1:2), points_withrating(:,3));          % wyznaczenie punktu target
-                child(points_withrating(target_num, 4), :) = [];                                                       % usuniecie z listy dzieci punktu target
-                
-                goback_flag = false;                                                                                   % powrot do punktu - rodzica zostal zakonczony
-            else
-                parentNum = parentNum -1;                                                                              % jezeli nie ma galezi (dzieci) dla danego identyfikatora rodzica
-                continue;
-            end
-        end
+    if gobackFlag % powrot do rodzica
+            [parentTochildRoute,...
+            exploPoints,...
+            parentNum,...
+            target_point,...
+            gobackFlag,...
+            continueStatus ] = DFS.goBack(parentTochildRoute,...
+                                          exploPoints,...
+                                          parentNum,...
+                                          exploMapOcc,...
+                                          realPoses,...
+                                          maxLidarRange );
+        if continueStatus
+            continue
+        end      
         
     else % flaga o powrocie do punktu rozgalezienia nie zostala podniesiona
-        if parentNum == 0                                                   % na pocz¹tku gdy nie ma galezi nadpisywana jest pierwsza linijka
-            parentTochild_route(end,:) =[ 0 realPoses(end,1:2)];
-        elseif newParent_flag
-            parentTochild_route(end+1,:) =[ parentNum  realPoses(end,1:2)]; % dopisywany jest kolejny rodzic, ale tylko przy zwiêkszeniu identyfikatora rodzica
-            newParent_flag = false;
-        end
-        
-        % Wyznaczenie punktów eksploracyjnych dla pozycji od last_pose_num do konca pozycji
-        explo_points = [];
-        disp("Exploratory points search START!");
-        explo_points = exploratory_points2(explo_map_occ, explo_points, last_pose_num, realPoses, middle_Pt, maxLidarRange, 0.05 );
-        disp("Exploratory points search DONE!");
-        % weryfikacja dzieci wzglêdem osiagnietych pozycji
-        if ~isempty(child) && ~isempty(middle_Pt)
-            child = verify_PointsToPosses(child, middle_Pt);
-        end
-        
-        % weryfikacja punktów wzgledem osiagnietych pozycji
-        if ~isempty(explo_points) && ~isempty(middle_Pt)
-            explo_points = verify_PointsToPosses(explo_points,middle_Pt);
-        end
-        
-        if isempty(explo_points) %jezeli po tej operacji nie ma ani punktow-dzieci ani punktow eksploracyjnych mapowanie zostaje zakonczone
-            if isempty(child)
-                break;
-            else
-                goback_flag = true; % jezeli nie ma punktow eksploraycjnych ale sa punkty dzieci zostaje rozpoczeta sekwencja powrotna
-                continue;
-            end
-        else
-            if length(explo_points(:,1)) > 1
-                
-                parentNum = parentNum +1;
-                newParent_flag = true;
-                [target_point, explo_points, ~] = best_point(explo_points(:,1:2), explo_points(:,3));
-                child = [child ; explo_points(:,1:2) repmat(parentNum, length(explo_points(:,1)), 1)];
-                
-            else
-                target_point =  explo_points(1,1:2) ;
-            end
-        end
+        [parentTochildRoute,...
+            exploPoints,...
+            parentNum,...
+            newParentFlag,...
+            target_point,...
+            gobackFlag,...
+            breakStatus  ] = DFS.goDeep(parentTochildRoute, ...
+                                        exploPoints,...
+                                        parentNum,...
+                                        newParentFlag,...
+                                        realPoses,...
+                                        exploMapOcc,...
+                                        lastPoseNum ,...
+                                        middlePoints,...
+                                        maxLidarRange,...
+                                        exploratoryInflateRatio);
+        if gobackFlag
+            continue
+        elseif breakStatus
+            break
+        end                
     end
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
     
-    explo_map = LidarAq(explo_map, Lidar_subscriber);
-    [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange); 
+    exploMap = LidarAq(exploMap, Lidar_subscriber);
+    [exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange); 
     if exist('lidarPlot', 'var')
         delete(lidarPlot);
     end
@@ -167,7 +131,7 @@ while true
 
     stop_Location = [target_point Angle2Points(realPoses(end,1:2), target_point(1,1:2) )];
     
-    last_pose_num  = length(realPoses(:,1));
+    lastPoseNum  = length(realPoses(:,1));
     
 
     
@@ -175,10 +139,7 @@ while true
     % oszukanie zajetosci przez binaryzacjê aktualnej mapy i kolejn¹ erozjê
     % i dylatacje w celu poprawy wygl¹du mapy oraz umozliwienia jazdy w
     % nieznane
-    binMap = imbinarize(occupancyMatrix(explo_map_occ),0.5);
-    temp_map = occupancyMap(binMap , MapResolution); %
-    temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
-%     inflate(temp_map, robotRadiusTemp);
+    temp_map = mapConversion(exploMapOcc, MapResolution);
     disp("Map Processing DONE!")
 
     % Wyznaczenie najkrótszej œcie¿ki
@@ -331,7 +292,7 @@ while true
     disp("Navigation to point...");
     
     hold on
-    show(explo_map_occ,'FastUpdate', true);
+    show(exploMapOcc,'FastUpdate', true);
     axis(figAxis)
     hold on
     if exist('plannerPlot', 'var')
@@ -345,12 +306,12 @@ while true
     end
     targetPlot = plot(stop_Location(:,1), stop_Location(:,2), 'sb','DisplayName','Aktualny cel');
     
-    if ~isempty(child) 
+    if ~isempty(exploPoints) 
         if exist('child_plot', 'var')
             delete(child_plot);
         end
         hold on
-        child_plot = plot(child(:,1),child(:,2), '.', 'Color', '#EDB120','DisplayName','Punkty eksploracyjne');
+        child_plot = plot(exploPoints(:,1),exploPoints(:,2), '.', 'Color', '#EDB120','DisplayName','Punkty eksploracyjne');
     end
     legend()
     
@@ -367,14 +328,14 @@ while true
         
 
         % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji
-        explo_map = LidarAq(explo_map, Lidar_subscriber);
-        [explo_map_occ, realPoses] = buildMap_and_poses(explo_map, MapResolution, maxLidarRange);
+        exploMap = LidarAq(exploMap, Lidar_subscriber);
+        [exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
         
         % Wyznaczenie okregow filtrujacych
-        middle_Pt(end+1,:) = middle_points2(explo_map_occ,realPoses(end,:), middle_Pt);
+        middlePoints(end+1,:) = middle_points2(exploMapOcc,realPoses(end,:), middlePoints);
         
         hold on
-        show(explo_map_occ,'FastUpdate', true);
+        show(exploMapOcc,'FastUpdate', true);
         axis(figAxis)
         hold on
         if exist('lidarPlot', 'var')
@@ -391,9 +352,9 @@ while true
         disp('NEXT MEASURMENT')
         disp(num2str(distanceToGoal))
                     
-        binMap = imbinarize(occupancyMatrix(explo_map_occ),0.5);
+        binMap = imbinarize(occupancyMatrix(exploMapOcc),0.5);
         temp_map = occupancyMap(binMap , MapResolution); %
-        temp_map.LocalOriginInWorld = explo_map_occ.LocalOriginInWorld;
+        temp_map.LocalOriginInWorld = exploMapOcc.LocalOriginInWorld;
         costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );
         
         
@@ -437,7 +398,7 @@ while true
     sendPath([],pub_automap, rosmsg, pathIndex) % stop motors
     disp("Navigation to point... DONE!");
     
-    all_plannerPoses =  [all_plannerPoses; plannerPoses];
+    allPlannerPoses =  [allPlannerPoses; plannerPoses];
 end
 toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symulacji
 
@@ -445,5 +406,5 @@ toc(simulation_time) % zatrzymanie timera odpowiadzalnego za pomiar czasu symula
 %%
 disp("MAPPING DONE");
 figure
-show(explo_map_occ);
+show(exploMapOcc);
 title("Ukonczona  mapa po symulacji")
