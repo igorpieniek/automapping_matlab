@@ -40,125 +40,93 @@ end
 % mapResolution = 50;      % rozdzielczoœæ mapy 
 NumOfRays = 72; %64         % liczba promieni przypadaj¹ca na ka¿d¹ pozycjê
 
-ray_length = 2;          % promieñ sprawdzanego okrêgu pod wzglêdem przeszkód
-MIN_DIST = 0.15;          % odlegosc miedzy ostatnio odnalezionymi punktami stycznosci z map¹
-ray_length_step = 0.3;   % krok z jakim odejmowana jest d³ugoœæ promienia w przypadku braku punktow eksploracyjnych
-size_of_checkarea = 0.2; % minimalna odleg³oœæ punktu eksploracyjnego od przeszkody
+rayLength = 2;          % promieñ sprawdzanego okrêgu pod wzglêdem przeszkód
+minGap = 0.15;          % odlegosc miedzy ostatnio odnalezionymi punktami stycznosci z map¹
+rayLength_step = 0.3;   % krok z jakim odejmowana jest d³ugoœæ promienia w przypadku braku punktow eksploracyjnych
 
-PROJECT_RESULTS = false; % wyswietlanie wyników ? (do testowania)
-
-% if isa(explo_map, 'lidarSLAM')
-%     [scans,poses] = scansAndPoses(explo_map);                         
-%     omap = buildMap(scans,poses,explo_map.MapResolution, maxLidarRange); %stworzenie mapy o danej rozdzielczoœci
-% elseif isa(explo_map, 'occupancyMap')
-%     
-    omap = copy(explo_map);
-    poses = occ_poses; % to musz¹ byc wszystkie pozycje!
-% end
+   
+omap = copy(explo_map);
+poses = occ_poses; % to musz¹ byc wszystkie pozycje!
 
 inflate(omap, robotMargin);
 
-% rangefinder = rangeSensor('HorizontalAngle', [-pi pi],'RangeNoise', 0.001,'Range' , [0 8]);
-% [ranges, ~] = rangefinder(poses(end,:), omap);
-
-
 MaxAngle = 2*pi;
 MinAngle = 0;
-angleResolution = 2*pi / NumOfRays;
+angleResolution = MaxAngle / NumOfRays;
 alfa = (MinAngle:(angleResolution) :(MaxAngle-angleResolution)); %zakres k¹towy promieni
-inter_Pt = [];
+interPoints = [];
 
 
-min_nan_length = 1;        % minimalna ilosc punktow nan aby zasz³o wyznaczanie punktu eksploracyjnego
-explo_points = [];         % macierz na punty eksploracyjne
+minNaNLength = 1;        % minimalna ilosc punktow nan aby zasz³o wyznaczanie punktu eksploracyjnego
+exploPoints = [];         % macierz na punty eksploracyjne
 
 inter_Pt_mean_temp = [];   % macierz na tymczasowe œrednie dla poszczególnych pozycji
 inter_Pt_mean = 0;         % INIT -œrednia d³ugosci promieni dla ostatnich pozycji MINIMUM WYSZUKIWANIA PROMIENIA
-firstIt_flag = true;       % Flaga pierwszej iteracji
-short_ray_length = false;  % flaga wystawiana gdy nie ma 'dziur' na wyszukiwanym promieniu
+firstItFlag = true;       % Flaga pierwszej iteracji
+tooShortRay = false;  % flaga wystawiana gdy nie ma 'dziur' na wyszukiwanym promieniu
 
 %% Wyznaczenie punktów eksploracyjncch
-while ray_length > inter_Pt_mean && ray_length <= (maxLidarRange - ray_length_step)
+while rayLength > inter_Pt_mean && rayLength <= (maxLidarRange - rayLength_step)
     for i = last_pos_num : length(poses(:,1))
         
-        inter_Pt = rayIntersection(omap,[poses(i,1:2) 0], alfa , ray_length);   % wyznaczenie punktów przeciecia
-        for j = 1: length(inter_Pt(:,1))
-            inter_Pt(j,3)  = norm(inter_Pt(j,1:2) - poses(i,1:2));              % wyznaczenie odleglosci miedzy badana pozycja, a wyznaczonymi punktami
+        interPoints = rayIntersection(omap,[poses(i,1:2) 0], alfa , rayLength);   % wyznaczenie punktów przeciecia
+        for j = 1: length(interPoints(:,1))
+            interPoints(j,3)  = norm(interPoints(j,1:2) - poses(i,1:2));              % wyznaczenie odleglosci miedzy badana pozycja, a wyznaczonymi punktami
         end
         
-        nonan_numbers = find(isnan(inter_Pt(:,1)) == 0);                        % wyznaczneie numerów promieni, które trafiaja w przeszkode
+        nonan_numbers = find(isnan(interPoints(:,1)) == 0);                        % wyznaczneie numerów promieni, które trafiaja w przeszkode
         if isempty(nonan_numbers)
             warning("nie mozna wyznaczyc punktow eksploracyjnych, poniewaz nie ma nic w promieniu poszukiwan! ");
-            short_ray_length = true;
+            tooShortRay = true;
             break;
         end
-        if firstIt_flag
-            inter_Pt_mean_temp(end+1, :) =  median(inter_Pt(nonan_numbers ,3)) ;  % obliczanie œredniej d³ugoœci promieni dla danej pozycji (TYLKO DLA PIERWSZEJ ITERACJI G£ÓWNEJ PÊTLI)
+        if firstItFlag
+            inter_Pt_mean_temp(end+1, :) =  median(interPoints(nonan_numbers ,3)) ;  % obliczanie œredniej d³ugoœci promieni dla danej pozycji (TYLKO DLA PIERWSZEJ ITERACJI G£ÓWNEJ PÊTLI)
         end
         
         if ~((length(nonan_numbers)) == NumOfRays)                              % je¿eli wszystkie punkty trafiaj¹ to nie wyznaczymy punktów eksploracyjnych
             for k = 1:length( nonan_numbers)-1                                  % petla sprawdzajaca odleglosci miedzy punktami miedzy którymi promien na nic nie natrafi³
-                if (nonan_numbers(k+1) - nonan_numbers(k)) > min_nan_length     
-                    dist = norm(inter_Pt(nonan_numbers(k),1:2) - inter_Pt(nonan_numbers(k+1),1:2));
-                    if dist > MIN_DIST
+                if (nonan_numbers(k+1) - nonan_numbers(k)) > minNaNLength     
+                    dist = norm(interPoints(nonan_numbers(k),1:2) - interPoints(nonan_numbers(k+1),1:2));
+                    if dist > minGap
                         % wpisanie do tablicy punktow ekspolracyjnych
-                        explo_points(end+1,:) = mean([inter_Pt(nonan_numbers(k),1:2); inter_Pt(nonan_numbers(k+1),1:2)]);
+                        exploPoints(end+1,:) = mean([interPoints(nonan_numbers(k),1:2); interPoints(nonan_numbers(k+1),1:2)]);
                     end
                 end
             end
             
             % przypadek gdy promien nie trafia na samym pocz¹tku lub koncu listy
             LastToFirst_nan_length = (nonan_numbers(1,1) - 1) + (NumOfRays - nonan_numbers(end,1)) + 1;
-            if  LastToFirst_nan_length > min_nan_length
-                dist = norm(inter_Pt(nonan_numbers(1),1:2) - inter_Pt(nonan_numbers(end),1:2));
-                if dist > MIN_DIST
+            if  LastToFirst_nan_length > minNaNLength
+                dist = norm(interPoints(nonan_numbers(1),1:2) - interPoints(nonan_numbers(end),1:2));
+                if dist > minGap
                     % wpisanie do tablicy punktow ekspolracyjnych
-                    explo_points(end+1,:) = mean([inter_Pt(nonan_numbers(1),1:2); inter_Pt(nonan_numbers(end),1:2)]);
+                    exploPoints(end+1,:) = mean([interPoints(nonan_numbers(1),1:2); interPoints(nonan_numbers(end),1:2)]);
                 end
             end
         end
     end
-    if short_ray_length && ray_length <= (maxLidarRange - ray_length_step)
-        short_ray_length = false;
-        ray_length = ray_length + ray_length_step;
+    if tooShortRay && rayLength <= (maxLidarRange - rayLength_step)
+        tooShortRay = false;
+        rayLength = rayLength + rayLength_step;
         continue;
     end
-%----------------------------------------------------------   
-    if PROJECT_RESULTS && ~isempty(explo_points)         
-        figure                                              
-        show(omap)
-        hold on
-        plot(explo_points(:,1),explo_points(:,2),'*r')
-        title('Wszystkie punkty eksploracyjne')
-    end
-    %----------------------------------------------------------
-    if firstIt_flag
+
+    if firstItFlag
         inter_Pt_mean = median(inter_Pt_mean_temp); % obliczenie œredniej ze œrednich d³ugoœci promieni wyznaczonych dla kazdej pozycji (TYLKO W PIERWSZEJ ITERACJI)
-        firstIt_flag  = false;
+        firstItFlag  = false;
     end
     
-    %% 1 Filtracja punktów : usuniecie punktów które lez¹ za blisko osiagnietych pozycji oraz powtarzajacych sie punktow
-    %
-    if ~isempty(explo_points)
+    if ~isempty(exploPoints)
         break;
     else
-        ray_length = ray_length - ray_length_step;
+        rayLength = rayLength - rayLength_step;
         continue;
     end
     
-    %----------------------------------------------------------
-    if PROJECT_RESULTS && ~isempty(explo_points)
-        figure
-        show(omap)
-        hold on
-        plot(explo_points(:,1),explo_points(:,2),'*r')
-        title('Bez punktów lezacych za blisko osiagnietych pozycji')
-    end
-    %----------------------------------------------------------
-
 end 
 
-explo_points_out = exploratory_points_rating(explo_points, omap, poses(end,:), maxLidarRange);
+explo_points_out = exploratory_points_rating(exploPoints, omap, poses(end,:), maxLidarRange);
 
 
 
