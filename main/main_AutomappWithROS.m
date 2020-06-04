@@ -8,7 +8,6 @@ maxLidarRange = 8;               % [m]
 MapResolution = 40;
 MaxNumOfRetry = 3;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
-
 scanAngleOffset = -pi/2;  % offset zwi¹zany z obrotem odczytanego skanu, tak aby 
                           % pocz¹tkowa orientacja pojazdu i skanu by³y
                           % identyczna
@@ -34,7 +33,6 @@ ccConfigOrg = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusCo
 node_automap = ros.Node('/matlab_automap');
 pub_automap = ros.Publisher(node_automap, '/matlab_velocity', 'geometry_msgs/Vector3Stamped');
 rosmsg = rosmessage('geometry_msgs/Vector3Stamped');
-pathIndex = 0;
 
 %%----------------- INICJALIZACJA --------------------------------------------------------------
 
@@ -174,8 +172,8 @@ while true
     legend()
     
     % Wysy³anie œcie¿ki do sieci ROS (do kontrolera œcie¿ki na Raspberry Pi)
-    sendPath([],pub_automap, rosmsg, pathIndex) % przesy³anie danych
-    sendPath(path ,pub_automap, rosmsg, pathIndex) % przesy³anie danych
+    sendPath([],pub_automap, rosmsg) % przesy³anie danych
+    sendPath(path ,pub_automap, rosmsg) % przesy³anie danych
     
     % Rozpoczêcie procesu jazdy oraz weryfikacji poprawnoœci przemieszczania siê
     disp("Navigation to point...");
@@ -246,7 +244,7 @@ while true
         
         lastDistanceToGoal = distanceToGoal;      
     end
-    sendPath([],pub_automap, rosmsg, pathIndex) % Stop pracy kontrolera
+    sendPath([],pub_automap, rosmsg) % Stop pracy kontrolera
     disp("Navigation to point... DONE!");
     allPlannerPoses =  [allPlannerPoses; path];
 end
