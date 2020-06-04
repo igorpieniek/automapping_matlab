@@ -139,12 +139,12 @@ while ray_length > inter_Pt_mean && ray_length <= (maxLidarRange - ray_length_st
     
     %% 1 Filtracja punktów : usuniecie punktów które lez¹ za blisko osiagnietych pozycji oraz powtarzajacych sie punktow
     %
-        if ~isempty(explo_points)
-            break;
-        else
-            ray_length = ray_length - ray_length_step;
-            continue;
-        end
+    if ~isempty(explo_points)
+        break;
+    else
+        ray_length = ray_length - ray_length_step;
+        continue;
+    end
     
     %----------------------------------------------------------
     if PROJECT_RESULTS && ~isempty(explo_points)
@@ -156,23 +156,7 @@ while ray_length > inter_Pt_mean && ray_length <= (maxLidarRange - ray_length_st
     end
     %----------------------------------------------------------
 
-    %% WYŒWIETLENIE WYNIKÓW ORAZ PRZERWANIE PROCESU W PRZYPADKU WYSTEPOWANIA PUNKTÓW NA TYM ETAPIE
-    if ~isempty(explo_points)
-        %----------------------------------------------------------
-        if PROJECT_RESULTS
-            figure
-            show(omap);
-            hold on
-            plot(explo_points(:,1),explo_points(:,2),'*r')
-            hold on
-            plot(poses(end,1),poses(end,2),'ok')
-            title('Po K-means + najlepszy punkt')
-        end
-        %----------------------------------------------------------
-        
-        break;
-    end
-end % koniec
+end 
 
 explo_points_out = exploratory_points_rating(explo_points, omap, poses(end,:), maxLidarRange);
 
