@@ -8,6 +8,11 @@ maxLidarRange = 8;               % [m]
 MapResolution = 40;
 MaxNumOfRetry = 3;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
+
+scanAngleOffset = -pi/2;  % offset zwi¹zany z obrotem odczytanego skanu, tak aby 
+                          % pocz¹tkowa orientacja pojazdu i skanu by³y
+                          % identyczna
+
 %Parametry plannera RRT*
 robotRadiusConfig.original = 0.3;
 robotRadiusConfig.step = 0.02;
@@ -38,7 +43,7 @@ exploMap = Lidar_Init(maxLidarRange, MapResolution);
 
 % Pierwszy pomiar w punkcie startowym
 Lidar_subscriber = rossubscriber('/scan');
-exploMap = LidarAq(exploMap, Lidar_subscriber);
+exploMap = LidarAq(exploMap, Lidar_subscriber, scanAngleOffset);
 [exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
 
 lastPoseNum  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
@@ -110,7 +115,7 @@ while true
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
     % Nowy pomiar
-    exploMap = LidarAq(exploMap, Lidar_subscriber);
+    exploMap = LidarAq(exploMap, Lidar_subscriber, scanAngleOffset);
     [exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
     
     % Aktualizacja
@@ -128,7 +133,7 @@ while true
     lastPoseNum  = length(realPoses(:,1));
     
     % Konwersja aktualnej mapy
-    temp_map = mapConversion(exploMapOcc, MapResolution);
+    temp_map = mapConversion(exploMapOcc);
 
     % Wyznaczenie najkrótszej œcie¿ki - RRT*
     disp("Planner START!");  
@@ -180,7 +185,7 @@ while true
     while( distanceToGoal > goalRadius )
         
         % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji      
-        exploMap = LidarAq(exploMap, Lidar_subscriber);
+        exploMap = LidarAq(exploMap, Lidar_subscriber, scanAngleOffset);
         [exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
         
         % Wyznaczenie okregow filtrujacych
@@ -203,7 +208,7 @@ while true
         disp(num2str(distanceToGoal))
         
         % Konwersja mapy zajêtoœci
-        temp_map = mapConversion(exploMapOcc, MapResolution);       
+        temp_map = mapConversion(exploMapOcc);       
         costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );
                
         if differentRadiusFlag && checkFree(costmap, [realPoses(end,1:2) rad2deg(realPoses(end,3))])

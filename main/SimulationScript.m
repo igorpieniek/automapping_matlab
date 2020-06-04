@@ -153,7 +153,7 @@ while true
     lastPoseNum  = length(allPoses(:,1));
     
     % Konwersja aktualnej mapy
-    temp_map = mapConversion(exploMap, MapResolution);
+    temp_map = mapConversion(exploMap);
     
 
     % PLANNER RRT*
@@ -225,7 +225,7 @@ while true
         idx = idx + 1;
         
         % Konwersja aktualnej wersji mapy - do weryfikacji
-        temp_map = mapConversion(exploMap,MapResolution);
+        temp_map = mapConversion(exploMap);
         
         % Uworzenie aktualnej mapy kosztów - wzglêdem orginalnej wielkosci marginesu
         costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );    

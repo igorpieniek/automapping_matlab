@@ -1,30 +1,30 @@
-function  map_out = LidarAq(map, subscriberObj)
-% %OPIS FUNKCJI
-% W funkcji tej nastêpuje pomiar z lidaru i wpisanie go do aktualnej mapy
-% 
+function  map_out = LidarAq(map, subscriberObj, scanAngleOffset)
+% W funkcji tej nastêpuje odczyt skanu z Lidaru oraz przypisanie go do mapy
 % INPUT:
-%   -map - objekt lidarSLAM
-%   -subscriberObj - objekt Subscriber 
+%  - map - objekt lidarSLAM
+%  - subscriberObj - objekt Subscriber 
 % OUTPUT:
-%   -map_output - obiekt lidarSLAM, uzupe³niona mapa o dodatkowy pomiar
+%  - map_output - obiekt lidarSLAM, uzupe³niona mapa o dodatkowy skan
 
 if ~isa(map, 'lidarSLAM')
     error("map - objekt lidarSLAM");
-% elseif ~isa(subscriberObj, 'subscriber')
-%     error("subscriberObj - objekt Subscriber");
 end
 
-angleOffset = -pi/2;
 disp("Lidar acquisition START!")
 
 while true
-    scandata_raw = receive(subscriberObj,10);
+    % Surowy odczyt 
+    scandata_raw = receive(subscriberObj,10); 
     
-    angles =((scandata_raw.AngleMin + angleOffset):(scandata_raw.AngleIncrement):(scandata_raw.AngleMax + angleOffset))';
-
+    % K¹ty - zwi¹zane z rozdzielczoœci¹ lidaru
+    angles =((scandata_raw.AngleMin +  scanAngleOffset):(scandata_raw.AngleIncrement):(scandata_raw.AngleMax + angleOffset))';
+    
     ranges = scandata_raw.Ranges;
-
+    
+    % Po³¹czernie k¹tów oraz pojednyczych pomiarów    
     scan = lidarScan(double(ranges), double(angles));
+    
+    %Dodanie skanu do mapy
     [isScanAccepted, ~, ~] = addScan(map, scan);
     if ~isScanAccepted
         continue;
