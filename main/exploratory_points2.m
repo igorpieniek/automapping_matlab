@@ -16,7 +16,7 @@ function explo_points_out = exploratory_points2(explo_map, explo_points_all, las
 % danym promieniu i tam zostaje wyznaczony punkt eksploracyjny.
 % 
 % INPUT:
-%    - map - objekt lidarSLAM lub occupancyMap
+%    - map - occupancyMap
 %    - explo_points_all - ostatnio wyznaczone punkty eksploracyjne (jeœli istniej¹)   
 %    - last_pos_num - numer pozycji przy której zosta³ osi¹gniêty ostatni
 %                     punkt eksploracyjny (o ile by³ wyznaczony i osi¹gniêty )
@@ -31,16 +31,13 @@ function explo_points_out = exploratory_points2(explo_map, explo_points_all, las
 
 
 % Obs³uga b³êdów argumentów funkcji
-if ~(isa(explo_map, 'lidarSLAM') || isa(explo_map, 'occupancyMap') ) 
-    error("map - musi to byæ objekt lidarSLAM, mo¿na go otrzymaæ korzystajac z funkcji lidarSLAM()");
+if ~isa(explo_map, 'occupancyMap')  
+    error("map - musi to byæ objekt occupancyMap");
 elseif (nargin < 3)
     error("Do funkcji nale¿y przekazac 3 argumenty patrz -> help ")
-elseif ~isempty(explo_points_all) && (length(explo_points_all(1,:)) < 2)
-    error("explo_points_all - musi to byc pust tablica lub zapisana w formacie [x y waga] lub [x y] ")
 end
 
-
-mapResolution = 50;      % rozdzielczoœæ mapy 
+% mapResolution = 50;      % rozdzielczoœæ mapy 
 NumOfRays = 72; %64         % liczba promieni przypadaj¹ca na ka¿d¹ pozycjê
 
 ray_length = 2;          % promieñ sprawdzanego okrêgu pod wzglêdem przeszkód
@@ -48,23 +45,21 @@ MIN_DIST = 0.15;          % odlegosc miedzy ostatnio odnalezionymi punktami styc
 ray_length_step = 0.3;   % krok z jakim odejmowana jest d³ugoœæ promienia w przypadku braku punktow eksploracyjnych
 size_of_checkarea = 0.2; % minimalna odleg³oœæ punktu eksploracyjnego od przeszkody
 
-
 PROJECT_RESULTS = false; % wyswietlanie wyników ? (do testowania)
 
-if isa(explo_map, 'lidarSLAM')
-    [scans,poses] = scansAndPoses(explo_map);                         
-    omap = buildMap(scans,poses,mapResolution,maxLidarRange); %stworzenie mapy o danej rozdzielczoœci
-elseif isa(explo_map, 'occupancyMap')
-    
+% if isa(explo_map, 'lidarSLAM')
+%     [scans,poses] = scansAndPoses(explo_map);                         
+%     omap = buildMap(scans,poses,explo_map.MapResolution, maxLidarRange); %stworzenie mapy o danej rozdzielczoœci
+% elseif isa(explo_map, 'occupancyMap')
+%     
     omap = copy(explo_map);
-    %     omap = explo_map;
     poses = occ_poses; % to musz¹ byc wszystkie pozycje!
-end
+% end
 
 inflate(omap, robotMargin);
 
-rangefinder = rangeSensor('HorizontalAngle', [-pi pi],'RangeNoise', 0.001,'Range' , [0 8]);
-[ranges, ~] = rangefinder(poses(end,:), omap);
+% rangefinder = rangeSensor('HorizontalAngle', [-pi pi],'RangeNoise', 0.001,'Range' , [0 8]);
+% [ranges, ~] = rangefinder(poses(end,:), omap);
 
 
 MaxAngle = 2*pi;
@@ -145,22 +140,7 @@ while ray_length > inter_Pt_mean && ray_length <= (maxLidarRange - ray_length_st
     %% 1 Filtracja punktów : usuniecie punktów które lez¹ za blisko osiagnietych pozycji oraz powtarzajacych sie punktow
     %
         if ~isempty(explo_points)
-    %         ClearPosition_radius = 1.25*inter_Pt_mean; % 0.9 œredniej odleg³oœci - taka wartoœc musi byc zachowana od pozycji
-    %         for i = 1: length(poses(:,1))
-    %             if ~isempty(explo_points)
-    %                 delate_ex_num = [];
-    %                 for ex_num = 1: length(explo_points(:,1))
-    %                     ex_dist = norm(poses(i,1:2)- explo_points(ex_num,:));
-    %                     if ex_dist < ClearPosition_radius
-    %                         delate_ex_num(end+1) = ex_num;
-    %                     end
-    %                 end
-    %                 explo_points(delate_ex_num, :) = [];
-    %             end
-    %         end
-    %
-    %         explo_points = unique(explo_points, 'rows'); % usunieci powtarzajacych sie punktow
-               break;
+            break;
         else
             ray_length = ray_length - ray_length_step;
             continue;
@@ -175,47 +155,7 @@ while ray_length > inter_Pt_mean && ray_length <= (maxLidarRange - ray_length_st
         title('Bez punktów lezacych za blisko osiagnietych pozycji')
     end
     %----------------------------------------------------------
-    %% 2 Filtracja punktów le¿acych za blisko wykytych przeszkód
-    %     if ~isempty(explo_points)
-    %         area_check = find(CheckArea_xy(explo_points, omap, size_of_checkarea) ==  0);
-    %         explo_points(area_check, :) = [];
-    %     else
-    %         ray_length = ray_length - ray_length_step;
-    %         continue;
-    %     end
-    
-    %     show(omap)
-    %     hold on
-    %     plot(explo_points(:,1),explo_points(:,2),'.m')
-    %     title('Bez punktów lezacych za blisko osiagnietych pozycji')
-    
-    %% 3 Filtracja : K- means
-    %     if ~isempty(explo_points)
-    %        explo_points = kmeans_custom(explo_points);
-    %     elseif isempty(explo_points)
-    %         ray_length = ray_length - ray_length_step;
-    %         continue;
-    %     end
-    %
-    %     show(omap)
-    %     hold on
-    %     plot(explo_points(:,1),explo_points(:,2),'*r')
-    %     title('Bez punktów lezacych za blisko osiagnietych pozycji')
-    %% 4 Filtracja przez weryfikacje odleg³osci od osiagnietych punktów
-%     if ~isempty(explo_points) && ~isempty(middle_area_points)
-% %         explo_points = verify_PointsToPosses(explo_points, middle_area_points);
-% %         
-% %         if isempty(explo_points) && ray_length <= (maxLidarRange - ray_length_step)
-% %            short_ray_length = true;
-% %            continue;
-% %         else
-% %             break;
-% %         end
-%     else
-%         ray_length = ray_length - ray_length_step;
-%     end
-%     
-    
+
     %% WYŒWIETLENIE WYNIKÓW ORAZ PRZERWANIE PROCESU W PRZYPADKU WYSTEPOWANIA PUNKTÓW NA TYM ETAPIE
     if ~isempty(explo_points)
         %----------------------------------------------------------
@@ -234,64 +174,8 @@ while ray_length > inter_Pt_mean && ray_length <= (maxLidarRange - ray_length_st
     end
 end % koniec
 
+explo_points_out = exploratory_points_rating(explo_points, omap, poses(end,:), maxLidarRange);
 
-%% Filtracja istnie¹cych punktów oraz £¹czenie z istniejacymi punktami
-
-% %filtracja istniej¹cych punktów
-% min_dist_ALL = ClearPosition_radius ;
-% del_numbers = [];
-% if ~isempty(explo_points_all)
-%     for k = 1:length(explo_points_all(:,1))
-%         for i = last_pos_num : length(poses(:,1)) % tylko pozycje dotycz¹ce ostatniego odcinka
-%             %sprawdzenie odleg³oœci od pozycji, dla najkrótszej odleg³oœci ewentualna akcja
-%             dist = norm(poses(i,1:2) - explo_points_all(k, 1:2));
-%             if dist < min_dist_ALL
-%                 del_numbers(end+1, 1) = k;
-%             end
-%         end
-%     end
-%     
-%     del_numbers = unique(del_numbers);
-%     explo_points_all(del_numbers, :) = [];
-%     
-%     
-%     %sprawdzene jest RAY INTERSECTION
-%     del_numbers = [];
-%     if ~isempty(explo_points_all)
-%         for i = 1:length(explo_points_all(:,1))
-%             inter_all = rayIntersection(omap,[explo_points_all(i,1:2) 0], alfa , 0.5*ray_lengh_start);   % wyznaczenie punktów przeciecia
-%             nonan_numbers_all = find(isnan(inter_all(:,1)) == 0);
-%             if length(nonan_numbers_all)<= 0.5 *length(inter_all(:,1))
-%                 del_numbers(end+1, 1) = i;
-%             end
-%         end
-%         del_numbers = unique(del_numbers);
-%         explo_points_all(del_numbers, :) = [];
-%     end
-%     
-%     
-%     
-% end
-
-
-if isempty(explo_points) % po³¹czenie nowych punktów eksploracyjnych ze starymi
- 
-    if ~isempty(explo_points_all)
-        explo_points = explo_points_all(:,1:2);
-        explo_points_out = exploratory_points_rating(explo_points, omap, poses(end,:), maxLidarRange);
-    else
-        explo_points_out = [];
-    end
-else
-    if ~isempty(explo_points_all)
-        explo_points = [explo_points; explo_points_all(:,1:2)];
-        explo_points = unique(explo_points, 'row');
-        
-        explo_points = kmeans_custom(explo_points);
-        
-    end
-    explo_points_out = exploratory_points_rating(explo_points, omap, poses(end,:), maxLidarRange);
-end
 
 
 
