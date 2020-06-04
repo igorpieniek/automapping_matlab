@@ -1,4 +1,4 @@
-function explo_points_out = exploratory_points2(explo_map, explo_points_all, last_pos_num, occ_poses, middle_area_points, maxLidarRange, robotMargin)
+function explo_points_out = exploratory_points2(explo_map, allPoses, maxLidarRange, robotMargin)
 % % OPIS FUNKCJI
 % Funkcja zajmuje siê wyznaczeniem punktów eksploracyjnych, czyli takich
 % do których nale¿y przemieœciæ lidar, aby uzupe³niæ mapê i koñcowo,
@@ -17,15 +17,10 @@ function explo_points_out = exploratory_points2(explo_map, explo_points_all, las
 % 
 % INPUT:
 %    - map - occupancyMap
-%    - explo_points_all - ostatnio wyznaczone punkty eksploracyjne (jeœli istniej¹)   
-%    - last_pos_num - numer pozycji przy której zosta³ osi¹gniêty ostatni
-%                     punkt eksploracyjny (o ile by³ wyznaczony i osi¹gniêty )
 %    - occ_poses - wszystkie pozycje w ktorych przebywal robot
-%    - middle_area_points - punkty w formacie [x y radius] okreslaja
-%                           obszary w ktorych wyznaczone punkty nie powinny
-%                           sie znalezc (na ten moment funkcja wy³aczona)
 %    - maxLidarRange - maksymalny zakres lidaru w metrach
-%
+%    - robotMargin - wartoœc o któr¹ zostanie powiêkszone przeszkoday na
+%      mapie (do funkcji inflate)
 % OUTPUT
 %    - explo_points_out - macierz punktów eksploracyjnych i ich wag w formacie [ x y rate]   
 
@@ -46,7 +41,6 @@ rayLength_step = 0.3;   % krok z jakim odejmowana jest d³ugoœæ promienia w przyp
 
    
 omap = copy(explo_map);
-poses = occ_poses; % to musz¹ byc wszystkie pozycje!
 
 inflate(omap, robotMargin);
 
@@ -67,11 +61,11 @@ tooShortRay = false;  % flaga wystawiana gdy nie ma 'dziur' na wyszukiwanym prom
 
 %% Wyznaczenie punktów eksploracyjncch
 while rayLength > inter_Pt_mean && rayLength <= (maxLidarRange - rayLength_step)
-    for i = last_pos_num : length(poses(:,1))
+    for i = 1 : length(allPoses(:,1))
         
-        interPoints = rayIntersection(omap,[poses(i,1:2) 0], alfa , rayLength);   % wyznaczenie punktów przeciecia
+        interPoints = rayIntersection(omap,[allPoses(i,1:2) 0], alfa , rayLength);   % wyznaczenie punktów przeciecia
         for j = 1: length(interPoints(:,1))
-            interPoints(j,3)  = norm(interPoints(j,1:2) - poses(i,1:2));              % wyznaczenie odleglosci miedzy badana pozycja, a wyznaczonymi punktami
+            interPoints(j,3)  = norm(interPoints(j,1:2) - allPoses(i,1:2));              % wyznaczenie odleglosci miedzy badana pozycja, a wyznaczonymi punktami
         end
         
         nonan_numbers = find(isnan(interPoints(:,1)) == 0);                        % wyznaczneie numerów promieni, które trafiaja w przeszkode
@@ -126,7 +120,7 @@ while rayLength > inter_Pt_mean && rayLength <= (maxLidarRange - rayLength_step)
     
 end 
 
-explo_points_out = exploratory_points_rating(exploPoints, omap, poses(end,:), maxLidarRange);
+explo_points_out = exploratory_points_rating(exploPoints, omap, allPoses(end,:), maxLidarRange);
 
 
 
