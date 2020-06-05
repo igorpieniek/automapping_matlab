@@ -2,6 +2,7 @@ classdef  DFSalgorithm
    properties
       parentToChildRoute
       parentNum
+      newParentFlag
       goBackFlag
       maxLidarRange  
       inflateRatio
@@ -10,7 +11,7 @@ classdef  DFSalgorithm
    methods
      % CONSTRUCTOR 
      function obj = DFSalgorithm(startPoint, maxLidarRange,exploratoryInflateRatio )
-        if nargin == 2
+        if nargin == 3
             disp('DFSalgorithm object init DONE!')
             obj.maxLidarRange = maxLidarRange;
             obj.inflateRatio = exploratoryInflateRatio;
@@ -19,6 +20,7 @@ classdef  DFSalgorithm
             obj.parentNum = 0;
             obj.allExploPoints = [];
             obj.goBackFlag = false;
+            obj.newParentFlag = false;
         else
             error('Wrong number of init variables! ')
         end
@@ -147,7 +149,7 @@ classdef  DFSalgorithm
 
             if obj.parentNum == 0                                                   % na początku gdy nie ma galezi nadpisywana jest pierwsza linijka
                 obj.parentToChildRoute(end,:) =[ 0 allPoses(end,1:2)];
-            elseif newParentFlag 
+            elseif obj.newParentFlag 
                 obj.parentToChildRoute(end+1,:) =[ obj.parentNum  allPoses(end,1:2)]; % dopisywany jest kolejny rodzic, ale tylko przy zwiększeniu identyfikatora rodzica
                 obj.newParentFlag = false;
             end
