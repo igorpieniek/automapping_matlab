@@ -1,4 +1,4 @@
-classdef  DFSalgorithm
+classdef  DFSalgorithm < handle
    properties
       parentToChildRoute
       parentNum
@@ -41,9 +41,10 @@ classdef  DFSalgorithm
                  end
             end
         end
+        output.exploPoints = obj.allExploPoints;
          
      end
-        function output = goBack(obj,map,allPoses)
+     function output = goBack(obj,map,allPoses)
             % Funkcja algorytmu DFS odpowiadająca za powrót do ostatniego punktu
             % rozgałęzienia - do punktu  w którym zostało odkryte wiecej niz jeden
             % punkt eksploracyjny
@@ -66,11 +67,11 @@ classdef  DFSalgorithm
             % "rodzica" - wskazówka do przejscia do funkcji goback)
             % - continueStatus - zwraca true gdy główna pętla musi byc kontynuowana
 
-             toDelete = [];
-             output.target = [];
-             output.exploPoints = obj.allExploPoints;
              
-             while true  
+             output.target = [];            
+             
+             while true 
+                 toDelete = [];
                  for p = 1 :  length(obj.parentToChildRoute(:,1))
                      semeparent_number = find(obj.allExploPoints(:,3) == obj.parentToChildRoute(p,1)); % zebranie galezi o tym samym identyfikatorze rodzica
                      if isempty(semeparent_number)
@@ -84,6 +85,7 @@ classdef  DFSalgorithm
                  if  obj.parentToChildRoute(end,1) == obj.parentNum && length(obj.parentToChildRoute(:,1))>1 %jezeli operujemy caly czas na tym samym identyfikatorze rodzica
                      output.target = obj.parentToChildRoute(end,2:3); % wyznaczenie aktualnego celu jako ostatneigu punktu z listy punktow powrotnych
                      obj.parentToChildRoute(end, :) = [];
+                     break;
                  else
                      temp = find(obj.allExploPoints(:,3) == obj.parentNum); % zebranie punktow galezi (dzieci) o tym samym identyfikatorze rodzica dla aktualnego identyfikatora
                      if ~isempty(temp)
@@ -95,16 +97,15 @@ classdef  DFSalgorithm
                          obj.allExploPoints(points_withrating(target_num, 4), :) = [];                                                       % usuniecie z listy dzieci punktu target
                         
                          obj.goBackFlag = false;                                                                                   % powrot do punktu - rodzica zostal zakonczony                   
-                         output.exploPoints =  obj.allExploPoints;
-                         return;
+                         break;
                      else
                          obj.parentNum = obj.parentNum - 1;                                                                              % jezeli nie ma galezi (dzieci) dla danego identyfikatora rodzica
                          continue;
                      end
                  end
              end
-        end     
-        function output = goDeep(obj, map, allPoses ,middlePoints)
+     end     
+     function output = goDeep(obj, map, allPoses ,middlePoints)
             % Funkcja algorytmu DFS odpowiadająca ja wykrywanie kolejnych punktów eksploracyjnych, filtrację
             % oraz wybór najbardziej optymalnego punktu. Funkcja do cyklicznego
             % wywoływania - zwraca pod argumentem gobackFlag true jeżeli nie
@@ -143,9 +144,7 @@ classdef  DFSalgorithm
             % dodatkowych punktów oraz brak istniejących
             % 
 
-            output.endStatus = false;
-            output.target = [];
-            output.exploPoints = obj.allExploPoints;
+            output.target = [];           
 
             if obj.parentNum == 0                                                   % na początku gdy nie ma galezi nadpisywana jest pierwsza linijka
                 obj.parentToChildRoute(end,:) =[ 0 allPoses(end,1:2)];
@@ -171,7 +170,6 @@ classdef  DFSalgorithm
 
 
             if isempty(explo_points) %jezeli po tej operacji nie ma ani punktow-dzieci ani punktow eksploracyjnych mapowanie zostaje zakonczone
-                output.exploPoints = obj.allExploPoints;
                 if ~isempty(obj.allExploPoints)                  
                     obj.goBackFlag = true; % jezeli nie ma punktow eksploraycjnych ale sa punkty dzieci zostaje rozpoczeta sekwencja powrotna
                 end
@@ -182,12 +180,13 @@ classdef  DFSalgorithm
                     obj.newParentFlag = true;
                     [output.target, explo_points, ~] = best_point(explo_points(:,1:2), explo_points(:,3));
                     obj.allExploPoints = [obj.allExploPoints ; explo_points(:,1:2) repmat(obj.parentNum, length(explo_points(:,1)), 1)];
-
                 else
                     output.target =  explo_points(1,1:2) ;
                 end
             end
-        end
+            
+            return;
+     end
    end
 end
 

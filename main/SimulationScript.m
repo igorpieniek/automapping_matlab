@@ -4,9 +4,9 @@ clear
 
 %%-------------  PARAMETRY POCZ¥TKOWE  -----------------------------------------
 
-RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\sym_part1.png';     % Wczytywana rzeczywista mapa 
-MapResolution = 34;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
-startPoint = [1.3 2.5 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
+RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\mapa_paint5.png';     % Wczytywana rzeczywista mapa 
+MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
+startPoint = [0.75 0.75 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
 
 maxLidarRange = 12;               % [m]
 AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
@@ -14,7 +14,7 @@ RangeNoise = 0.001;              % Szum przy okreœlaniu zasiêgów
 
 
 %Parametry plannera RRT*
-robotRadiusConfig.original = 0.3;
+robotRadiusConfig.original = 0.25;
 robotRadiusConfig.step = 0.02;
 robotRadiusConfig.min = 0.06;
 plannerConfig.maxIterations = 10000;

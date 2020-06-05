@@ -22,8 +22,8 @@ end
     
     % opcja bez wykorzystywania erozji i dylatacji działa również dobrze
     % choć czasem napotyka błędy
-    binMap  = imerode(binMap ,se);
-    binMap  = imdilate(binMap ,se2);
+%     binMap  = imerode(binMap ,se);
+%     binMap  = imdilate(binMap ,se2);
     
     convertedMap = occupancyMap(binMap , map.Resolution); 
     convertedMap.LocalOriginInWorld = map.LocalOriginInWorld;
