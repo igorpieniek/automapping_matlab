@@ -50,7 +50,6 @@ angleResolution = MaxAngle / NumOfRays;
 alfa = (MinAngle:(angleResolution) :(MaxAngle-angleResolution)); %zakres k¹towy promieni
 interPoints = [];
 
-
 minNaNLength = 1;        % minimalna ilosc punktow nan aby zasz³o wyznaczanie punktu eksploracyjnego
 exploPoints = [];         % macierz na punty eksploracyjne
 
