@@ -35,8 +35,8 @@ end
 % mapResolution = 50;      % rozdzielczoœæ mapy 
 NumOfRays = 72; %64         % liczba promieni przypadaj¹ca na ka¿d¹ pozycjê
 
-rayLength = 2;          % promieñ sprawdzanego okrêgu pod wzglêdem przeszkód
-minGap = 0.15;          % odlegosc miedzy ostatnio odnalezionymi punktami stycznosci z map¹
+rayLength = 2.5;          % promieñ sprawdzanego okrêgu pod wzglêdem przeszkód
+minGap = 0.5;          % odlegosc miedzy ostatnio odnalezionymi punktami stycznosci z map¹
 rayLength_step = 0.3;   % krok z jakim odejmowana jest d³ugoœæ promienia w przypadku braku punktow eksploracyjnych
 
    

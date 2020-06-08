@@ -1,12 +1,13 @@
 classdef  DFSalgorithm < handle
    properties
-      parentToChildRoute
-      parentNum
-      newParentFlag
-      goBackFlag
-      maxLidarRange  
-      inflateRatio
-      allExploPoints
+      parentToChildRoute % macierz na zapisywanie punktów po ktorych robot moze wrocic do rozgalezienia z ktorego wychodzi galaz na ktorej sie aktualnie znajduje
+      parentNum          % identyfikator rodzica danej galezi 
+      newParentFlag      % flaga podnoszona przy odnalezieniu rozgalezienia
+      goBackFlag         % flaga podnoszona przy braku nowych punktow dla danej galezi - prowadzi do powrotu do punktu rozgalezienia
+      maxLidarRange      % zakres pomiarowy lidaru
+      inflateRatio        % współczynnik funkcji inflate potrzebny przy przetwarzaniu aktualnej mapy w głównej funkcji wyszukującej obszary
+                                % do eksploracji - exploratory_points2
+      allExploPoints     % macierz na punkty rozgalezien dla danego identyfikatora rozgalezienia (rodzica)
    end
    methods
      % CONSTRUCTOR 
@@ -42,6 +43,7 @@ classdef  DFSalgorithm < handle
             end
         end
         output.exploPoints = obj.allExploPoints;
+        output.goBackFlag = obj.goBackFlag;
          
      end
      function output = goBack(obj,map,allPoses)
@@ -49,24 +51,11 @@ classdef  DFSalgorithm < handle
             % rozgałęzienia - do punktu  w którym zostało odkryte wiecej niz jeden
             % punkt eksploracyjny
             % INPUT:
-            % - parentToobj.allExploPointsRoute - lista punktów po których robot może wrócic do
-            % ostatniego rozgałęzienia
-            % - child - lista wszystkich dostepnych punktów eksploracyjnych
-            % - parentNum - unikalny identyfikator rodzica danej galezi 
             % - map - occupancyMap
             % - allPoses - wszystkie zarejestrowane pozycje
-            % - maxLidarRange - w metrach
             %
-            % OUTPUTS:
-            % - parentTochildRoute 
-            % - child 
-            % - parentNum 
+            % OUTPUTS - struktura
             % - target - punkt wybrany za cel
-            % - gobackFlag - zwracene true gdy nie zostaną odnalezione żadne nowe
-            % punty w aktualnie rozpatrywanej gałęzi (podjeta decyzja o powrocie do 
-            % "rodzica" - wskazówka do przejscia do funkcji goback)
-            % - continueStatus - zwraca true gdy główna pętla musi byc kontynuowana
-
              
              output.target = [];            
              
@@ -113,35 +102,13 @@ classdef  DFSalgorithm < handle
             % odfiltrowane) i została podjęta decyja o powrocie do ostatniego
             % odnalezionego rozgałęzienia (ostatniego miejsca w którym odnaleziono wiele punktów eksploracyjnych)
             % INPUT:
-            % - parentTochildRoute - lista punktów po których robot może wrócic do
-            % ostatniego rozgałęzienia
-            % - child - lista wszystkich dostepnych punktów eksploracyjnych
-            % - parentNum - unikalny identyfikator rodzica danej galezi 
-            % - newParentFlag - flaga podnoszona przy odnalezieniu rozgalezienia 
-            % (tj wiecej niż jeden punkt eksploracyjny odnaleziony dla jednej pozycji)
+
             % - allPoses - wszystkie zarejestrowane pozycje
             % - map - occupancyMap
-            % - lastPoseNum - nr ostatniej rozpatrywanej pozycji robota - tak aby
-            % można było rozpatrywać punkty od lastPoseNum do ostatniej względem
-            % allPoses
             % - middlePoints - punkty zwrócone przez funkcje middle_points2 (do filtracji)
-            % - maxLidarRange - w metrach
-            % - inflateRatio - współczynnik do funkcji inflate uzytej w funkcji
-            % wyszukującej punkty eksploracyjne exploratory_points2
             %
-            % OUTPUTS:
-            % - parentTochildRoute 
-            % - child 
-            % - parentNum 
-            % - obj.newParentFlag 
+            % OUTPUTS - struktura
             % - target - punkt wybrany za cel
-            % - gobackFlag - zwracene true gdy nie zostaną odnalezione żadne nowe
-            % punty w aktualnie rozpatrywanej gałęzi (podjeta decyzja o powrocie do 
-            % "rodzica" - wskazówka do przejscia do funkcji goback)
-            % - continueStatus - zwraca true gdy główna pętla musi byc kontynuowana
-            % - breakStatus - zwraca true gdy główna pętla powinna zostać
-            % przerwana, gdy proces zostanie uznany za zakończony - brak
-            % dodatkowych punktów oraz brak istniejących
             % 
 
             output.target = [];           

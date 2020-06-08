@@ -6,7 +6,7 @@ clear
 
 RealMap = 'C:\Users\Igor\Dysk Google\Studia\IN¯YNIERKA\maps\mapa_paint5.png';     % Wczytywana rzeczywista mapa 
 MapResolution = 20;              % Rozdzielczoœæ mapy - iloœæ pikseli przypadaj¹ca na metr  
-startPoint = [0.75 0.75 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
+startPoint = [0.7 1 pi/2];      % Punkt startowy robota oraz jego pocz¹tkowe po³o¿enie k¹towe [x y rad]
 
 maxLidarRange = 12;               % [m]
 AngleRangeBoundaries = [-pi pi]; % Maksymalny zakres katowy (dla innego zakresu ni¿ 360 stopni mo¿e nie funkcjonowaæ poprawnie)
@@ -21,7 +21,7 @@ plannerConfig.maxIterations = 10000;
 plannerConfig.ConnectionDistance = 0.5;
 plannerConfig.minTurningRadius = 0.001;
 plannerConfig.goalTolerance = [0.2, 0.2, 360];
-pathPointsDistance = 0.25;
+pathPointsDistance = 0.4;
 
 % wymiary pojazdu
 vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
@@ -37,7 +37,7 @@ show_target = false;     % Wyswietlanie aktualego punktu uznanego jako cel do kt
 grayimage = rgb2gray(imread(RealMap));
 bwimage = grayimage < 128;
 hideMap = occupancyMap(bwimage, MapResolution);
-% show(hideMap)
+ show(hideMap)
 
 % Inicjacja nowej mapy
 exploMap = occupancyMap( (ones(size(grayimage))).*0.5, MapResolution);
@@ -55,14 +55,8 @@ allPoses( end + 1,:) = startPoint; % dodanie pierwszego punktu
 insertRay(exploMap,  startPoint, ranges, angles,  rangefinder.Range(end));
 
 
-% Inicjalizacja zmiennych potrzebnych w g³ównej pêtli 
-parentNum = 0;             % identyfikator rodzica danej galezi 
-newParentFlag = false;     % flaga podnoszona przy odnalezieniu rozgalezienia
-gobackFlag = false;        % flaga podnoszona przy braku nowych punktow dla danej galezi - prowadzi do powrotu do punktu rozgalezienia
-exploPoints = [];                 % macierz na punkty rozgalezien dla danego identyfikatora rozgalezienia (rodzica)
 middlePoints = [];             % macierz na "punkty srodkowe" - do okreslenia obszarow zablokowanych dla wyszukiwania punktow eksploracyjnych (sposob filtracji)
-parentTochildRoute = [];   % macierz na zapisywanie punktów po ktorych robot moze wrocic do rozgalezienia z ktorego wychodzi galaz na ktorej sie aktualnie znajduje
-parentTochildRoute = [0 startPoint(1,1:2)]; % dodanie pierwszego punktu powrotnego
+
 
 exploratoryInflateRatio = 0.05; % wspó³czynnik funkcji inflate potrzebny przy przetwarzaniu aktualnej mapy w g³ównej funkcji wyszukuj¹cej obszary
                                 % do eksploracji - exploratory_points2
@@ -88,45 +82,7 @@ while true
      end
      exploPoints = DFSoutput.exploPoints;
      target_point = DFSoutput.target;
-%     if gobackFlag % flaga o powrocie do punktu rozgalezienia zostala podniesiona
-%         [parentTochildRoute,...
-%             exploPoints,...
-%             parentNum,...
-%             target_point,...
-%             gobackFlag,...
-%             continueStatus ] = DFS.goBack(parentTochildRoute,...
-%                                           exploPoints,...
-%                                           parentNum,...
-%                                           exploMap,...
-%                                           allPoses,...
-%                                           maxLidarRange );
-%         if continueStatus
-%             continue
-%         end
-% 
-%     else 
-%         [parentTochildRoute,...
-%             exploPoints,...
-%             parentNum,...
-%             newParentFlag,...
-%             target_point,...
-%             gobackFlag,...
-%             breakStatus  ] = DFS.goDeep(parentTochildRoute, ...
-%                                         exploPoints,...
-%                                         parentNum,...
-%                                         newParentFlag,...
-%                                         allPoses,...
-%                                         exploMap,...
-%                                         lastPoseNum ,...
-%                                         middlePoints,...
-%                                         maxLidarRange,...
-%                                         exploratoryInflateRatio);
-%         if gobackFlag
-%             continue
-%         elseif breakStatus
-%             break
-%         end        
-%     end
+     gobackFlag = DFSoutput.goBackFlag;
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     % Aktualizacja wyswietlania wynikow
     if ~isempty(exploPoints) && show_childPoints

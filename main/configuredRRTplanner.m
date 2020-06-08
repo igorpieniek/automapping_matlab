@@ -65,7 +65,7 @@ function [path,...
 
         if plannerFirstIt
             costmapOrg = copy(costmap);
-%           stop_Location = changePointToClosest(map, costmap, stop);
+            stop_Location = changePointToClosest(map, costmap, stop);
             plannerFirstIt = false;
             if isempty(stop)
                 disp('Cel zostal wyznaczony poza mapa')
@@ -100,7 +100,7 @@ function [path,...
             else
                 robotRadiusTemp = robotRadiusTemp - robotRadiusConfig.step; 
             end
-            start(3) = start(3) + pi/2; %sztuczna zmiana orientacji (próba wyznaczenia ścieżki za wszelką cene)
+            start(3) = start(3) + pi/4; %sztuczna zmiana orientacji (próba wyznaczenia ścieżki za wszelką cene)
             continue
         end
 
