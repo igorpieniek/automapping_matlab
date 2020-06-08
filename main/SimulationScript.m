@@ -57,7 +57,6 @@ insertRay(exploMap,  startPoint, ranges, angles,  rangefinder.Range(end));
 
 middlePoints = [];             % macierz na "punkty srodkowe" - do okreslenia obszarow zablokowanych dla wyszukiwania punktow eksploracyjnych (sposob filtracji)
 
-
 exploratoryInflateRatio = 0.05; % wspó³czynnik funkcji inflate potrzebny przy przetwarzaniu aktualnej mapy w g³ównej funkcji wyszukuj¹cej obszary
                                 % do eksploracji - exploratory_points2
 
@@ -80,36 +79,33 @@ while true
      if isempty(DFSoutput.target)
          break;
      end
-     exploPoints = DFSoutput.exploPoints;
-     target_point = DFSoutput.target;
-     gobackFlag = DFSoutput.goBackFlag;
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     % Aktualizacja wyswietlania wynikow
-    if ~isempty(exploPoints) && show_childPoints
+    if ~isempty(DFSoutput.exploPoints) && show_childPoints
         if exist('child_plot', 'var')
             delete(child_plot);
         end
         hold on
-        child_plot = plot(exploPoints(:,1),exploPoints(:,2), '.b','DisplayName','Punkty eksploracyjne');
+        child_plot = plot(DFSoutput.exploPoints(:,1),DFSoutput.exploPoints(:,2), '.b','DisplayName','Punkty eksploracyjne');
         legend()
         
     end
-    if ~isempty(target_point) && show_target
+    if ~isempty(DFSoutput.target) && show_target
         if exist('target_plot', 'var')
             delete(target_plot);
         end
         hold on
-        target_plot = plot(target_point(1,1), target_point(1,2),'or','HandleVisibility','off');
+        target_plot = plot(DFSoutput.target(1,1), DFSoutput.target(1,2),'or','HandleVisibility','off');
         if targetPlotFirst
             targetPlotFirst = false;
-            plot(target_point(1,1), target_point(1,2),'or','DisplayName','Aktualny cel')
+            plot(DFSoutput.target(1,1), DFSoutput.target(1,2),'or','DisplayName','Aktualny cel')
             legend()
         end
     end
     
     % Okreœlenie aktualnego celu oraz punktu startowego
     start_Location = startPoint;
-    stop_Location = [target_point Angle2Points(startPoint(1,1:2), target_point(1,1:2) )];
+    stop_Location = [DFSoutput.target Angle2Points(startPoint(1,1:2), DFSoutput.target(1,1:2) )];
     
     % Zapisanie numeru ostatniej zapsianej pozycji
     lastPoseNum  = length(allPoses(:,1));
@@ -162,7 +158,7 @@ while true
      
         % Aktualizacja przejechanej sciezki (o ile potrzebna)
         if idx > 1 && show_robotPath
-            if gobackFlag
+            if DFSoutput.goBackFlag
                 hold on
                 if backPlotFirst
                     backPlotFirst = false;
