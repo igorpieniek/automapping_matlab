@@ -42,25 +42,17 @@ exploMap = Lidar_Init(maxLidarRange, MapResolution);
 % Pierwszy pomiar w punkcie startowym
 Lidar_subscriber = rossubscriber('/scan');
 exploMap = LidarAq(exploMap, Lidar_subscriber, scanAngleOffset);
-[exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
+[exploMapOcc, allPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
 
 lastPoseNum  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
 allPlannerPoses = [];
 exploratoryInflateRatio = 0.05; % wspó³czynnik funkcji inflate potrzebny przy przetwarzaniu aktualnej mapy w g³ównej funkcji wyszukuj¹cej obszary
                                 % do eksploracji - exploratory_points2
 
-
-% Inicjalizacja zmiennych potrzebnych do algorytmu DFS
-parentNum = 0;              % identyfikator rodzica danej galezi 
-newParentFlag = false;     % flaga podnoszona przy odnalezieniu rozgalezienia
-gobackFlag = false;        % flaga podnoszona przy braku nowych punktow dla danej galezi - prowadzi do powrotu do punktu rozgalezienia
-exploPoints = [];          % macierz na punkty rozgalezien dla danego identyfikatora rozgalezienia (rodzica)
 middlePoints = [];         % macierz na "punkty srodkowe" - do okreslenia obszarow zablokowanych dla wyszukiwania punktow eksploracyjnych (sposob filtracji)
-parentTochildRoute = [];   % macierz na zapisywanie punktów po ktorych robot moze wrocic do rozgalezienia z ktorego wychodzi galaz na ktorej sie aktualnie znajduje
-parentTochildRoute = [0 realPoses(end,1:2)]; % dodanie pierwszego punktu powrotnego
 RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania trasy
 
-DFS = DFSalgorithm;         % za³¹czenie funkcji algorytmu DFS zbudowanego na potrzeby skryptu
+DFS = DFSalgorithm(allPoses(end,1:2), maxLidarRange, exploratoryInflateRatio);        % za³¹czenie funkcji algorytmu DFS zbudowanego na potrzeby skryptu
 
 % Rozpoczêcie pomiaru czasu wykonywania
 simulation_time = tic;      
@@ -70,46 +62,10 @@ figure
 figAxis = [-5 3 -5 4];
 while true
     %%--------------- Czêœæ algortytmu odpowiadaj¹ca za rozgalezienia - algorytm DFS-------------
-    
-    if gobackFlag % % flaga o powrocie do punktu rozgalezienia zostala podniesiona
-            [parentTochildRoute,...
-            exploPoints,...
-            parentNum,...
-            target_point,...
-            gobackFlag,...
-            continueStatus ] = DFS.goBack(parentTochildRoute,...
-                                          exploPoints,...
-                                          parentNum,...
-                                          exploMapOcc,...
-                                          realPoses,...
-                                          maxLidarRange );
-        if continueStatus
-            continue
-        end      
-        
-    else 
-        [parentTochildRoute,...
-            exploPoints,...
-            parentNum,...
-            newParentFlag,...
-            target_point,...
-            gobackFlag,...
-            breakStatus  ] = DFS.goDeep(parentTochildRoute, ...
-                                        exploPoints,...
-                                        parentNum,...
-                                        newParentFlag,...
-                                        realPoses,...
-                                        exploMapOcc,...
-                                        lastPoseNum ,...
-                                        middlePoints,...
-                                        maxLidarRange,...
-                                        exploratoryInflateRatio);
-        if gobackFlag
-            continue
-        elseif breakStatus
-            break
-        end                
-    end
+     DFSoutput = DFS.process(exploMapOcc, allPoses(lastPoseNum:end, :), middlePoints);
+     if isempty(DFSoutput.target)
+         break;
+     end
     %---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
     % Nowy pomiar
@@ -125,7 +81,7 @@ while true
     
     % Okreœlenie celu oraz punktu startowego
     start_Location = [realPoses(end,1:2), realPoses(end,3)+pi/2] ;
-    stop_Location = [target_point Angle2Points(realPoses(end,1:2), target_point(1,1:2) )];
+    stop_Location = [DFSoutput.target Angle2Points(realPoses(end,1:2), DFSoutput.target(1,1:2) )];
     
     % Zapisanie numeru ostatniej zapsianej pozycji
     lastPoseNum  = length(realPoses(:,1));
@@ -162,12 +118,12 @@ while true
     end
     targetPlot = plot(stop_Location(:,1), stop_Location(:,2), 'sb','DisplayName','Aktualny cel');
     
-    if ~isempty(exploPoints) 
+    if ~isempty(DFSoutput.exploPoints) 
         if exist('child_plot', 'var')
             delete(child_plot);
         end
         hold on
-        child_plot = plot(exploPoints(:,1),exploPoints(:,2), '.', 'Color', '#EDB120','DisplayName','Punkty eksploracyjne');
+        child_plot = plot(DFSoutput.exploPoints(:,1),DFSoutput.exploPoints(:,2), '.', 'Color', '#EDB120','DisplayName','Punkty eksploracyjne');
     end
     legend()
     

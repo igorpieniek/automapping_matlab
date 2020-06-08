@@ -37,7 +37,6 @@ show_target = false;     % Wyswietlanie aktualego punktu uznanego jako cel do kt
 grayimage = rgb2gray(imread(RealMap));
 bwimage = grayimage < 128;
 hideMap = occupancyMap(bwimage, MapResolution);
- show(hideMap)
 
 % Inicjacja nowej mapy
 exploMap = occupancyMap( (ones(size(grayimage))).*0.5, MapResolution);
