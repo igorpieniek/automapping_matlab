@@ -4,13 +4,12 @@ clear
 
 %%-------------  PARAMETRY POCZ¥TKOWE  -----------------------------------------
 
-maxLidarRange = 8;               % [m]
-MapResolution = 40;
-MaxNumOfRetry = 3;              % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
+maxLidarRange = 8;        % maksymalny zasiêg pomiarowy Lidaru [m]
+MapResolution = 40;       % rozdzielczoœæ mapy
+MaxNumOfRetry = 3;        % Maksymalna liczba prób wyznaczenia œcie¿ki dla danego punktu poczatkowego i koncowego w przypadku wystapienia bledu
 
 scanAngleOffset = -pi/2;  % offset zwi¹zany z obrotem odczytanego skanu, tak aby 
-                          % pocz¹tkowa orientacja pojazdu i skanu by³y
-                          % identyczna
+                          % pocz¹tkowa orientacja pojazdu i skanu by³y identyczne
 
 %Parametry plannera RRT*
 robotRadiusConfig.original = 0.3;
@@ -22,10 +21,15 @@ plannerConfig.minTurningRadius = 0.01;
 plannerConfig.goalTolerance = [0.2, 0.2, 360];
 pathPointsDistance = 0.04;
 
+%Parametry dziêki którym weryfikowana jest poprawnoœæ œledzenia œcie¿ki
 goalRadius = 0.3; %odleg³oœc od wybranego celu, poniezej której zostanie uznane osi¹gniecie celu
 isStandingMargin = 0.02; %margines miêdzy kolejnymiu pozycjami. Jezeli poprzednia aproksymowana pozycja
                          %w porównaniu z aktualn¹ bêdzie +- ta wartoœæ - rozpatrywane jest jako b³¹d wykonywania œcie¿ki 
 
+exploratoryInflateRatio = 0.05; % wspó³czynnik funkcji inflate potrzebny przy przetwarzaniu aktualnej mapy w g³ównej funkcji wyszukuj¹cej obszary
+                                % do eksploracji - exploratory_points2
+                                
+%Definicja wymiarów robota oraz obiektu odpowiadajacego za sprawdzanie marginesu podczas wyznaczania œcie¿ki                         
 vehDim = vehicleDimensions(0.38, 0.25, 0.2,'FrontOverhang',0.04,'RearOverhang',0.3, 'Wheelbase', 0.005);
 ccConfigOrg = inflationCollisionChecker(vehDim, 'InflationRadius', robotRadiusConfig.original , 'NumCircles',1);
 
@@ -44,18 +48,17 @@ Lidar_subscriber = rossubscriber('/scan');
 exploMap = LidarAq(exploMap, Lidar_subscriber, scanAngleOffset);
 [exploMapOcc, allPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
 
-lastPoseNum  = 1; % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
-allPlannerPoses = [];
-exploratoryInflateRatio = 0.05; % wspó³czynnik funkcji inflate potrzebny przy przetwarzaniu aktualnej mapy w g³ównej funkcji wyszukuj¹cej obszary
-                                % do eksploracji - exploratory_points2
+% Inicjacja obiektu klasy DFSalgorithm - zbudowanej na potrzeby skryptu                                
+DFS = DFSalgorithm(allPoses(end,1:2), maxLidarRange, exploratoryInflateRatio);        
 
+% Wartoœci poczatkowe, inicjacja potrzebnych zmiennych
 middlePoints = [];         % macierz na "punkty srodkowe" - do okreslenia obszarow zablokowanych dla wyszukiwania punktow eksploracyjnych (sposob filtracji)
-RetryCounter = 0;           % licznik powtózen w przypadku bledu wyznaczania trasy
-
-DFS = DFSalgorithm(allPoses(end,1:2), maxLidarRange, exploratoryInflateRatio);        % za³¹czenie funkcji algorytmu DFS zbudowanego na potrzeby skryptu
+RetryCounter = 0;          % licznik powtózen w przypadku bledu wyznaczania trasy
+lastPoseNum  = 1;          % nr ostatniej pozycji przy której osiagnieto punkt eksploracyjny
+allPlannerPoses = [];      % macierz wszystkich punktów œciezki
 
 % Rozpoczêcie pomiaru czasu wykonywania
-simulation_time = tic;      
+processTime = tic;      
 
 %-------------------- GLÓWNA PÊTLA ---------------------------------------------------------------
 figure
@@ -205,7 +208,7 @@ while true
     allPlannerPoses =  [allPlannerPoses; path];
 end
 disp("MAPPING DONE");
-toc(simulation_time) % zatrzymanie timera i wyœwietlenie czasu procesu autonomicznego mapowania
+toc(processTime) % zatrzymanie timera i wyœwietlenie czasu procesu autonomicznego mapowania
 
 
 %% Wyœwietlenie koñcowych wyników
