@@ -17,7 +17,7 @@ while true
     scandata_raw = receive(subscriberObj,10); 
     
     % K¹ty - zwi¹zane z rozdzielczoœci¹ lidaru
-    angles =((scandata_raw.AngleMin +  scanAngleOffset):(scandata_raw.AngleIncrement):(scandata_raw.AngleMax + angleOffset))';
+    angles =((scandata_raw.AngleMin +  scanAngleOffset):(scandata_raw.AngleIncrement):(scandata_raw.AngleMax + scanAngleOffset))';
     
     ranges = scandata_raw.Ranges;
     

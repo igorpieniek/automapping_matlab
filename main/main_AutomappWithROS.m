@@ -73,21 +73,21 @@ while true
     
     % Nowy pomiar
     exploMap = LidarAq(exploMap, Lidar_subscriber, scanAngleOffset);
-    [exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
+    [exploMapOcc, allPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
     
     % Aktualizacja
     if exist('lidarPlot', 'var')
         delete(lidarPlot);
     end
     hold on
-    lidarPlot = plot(realPoses(:,1), realPoses(:,2),'-k.','DisplayName','LIDAR');
+    lidarPlot = plot(allPoses(:,1), allPoses(:,2),'-k.','DisplayName','LIDAR');
     
     % Okreœlenie celu oraz punktu startowego
-    start_Location = [realPoses(end,1:2), realPoses(end,3)+pi/2] ;
-    stop_Location = [DFSoutput.target Angle2Points(realPoses(end,1:2), DFSoutput.target(1,1:2) )];
+    start_Location = [allPoses(end,1:2), allPoses(end,3)+pi/2] ;
+    stop_Location = [DFSoutput.target Angle2Points(allPoses(end,1:2), DFSoutput.target(1,1:2) )];
     
     % Zapisanie numeru ostatniej zapsianej pozycji
-    lastPoseNum  = length(realPoses(:,1));
+    lastPoseNum  = length(allPoses(:,1));
     
     % Konwersja aktualnej mapy
     temp_map = mapConversion(exploMapOcc);
@@ -136,17 +136,17 @@ while true
     
     % Rozpoczêcie procesu jazdy oraz weryfikacji poprawnoœci przemieszczania siê
     disp("Navigation to point...");
-    distanceToGoal = norm(realPoses(end,1:2) - path(end, 1:2));
+    distanceToGoal = norm(allPoses(end,1:2) - path(end, 1:2));
     lastDistanceToGoal = distanceToGoal;
     RetryCounter = 0;
     while( distanceToGoal > goalRadius )
         
         % Akwizycja danych z lidaru i przypisanie do mapy oraz aktualizacja pozycji      
         exploMap = LidarAq(exploMap, Lidar_subscriber, scanAngleOffset);
-        [exploMapOcc, realPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
+        [exploMapOcc, allPoses] = buildMap_and_poses(exploMap, MapResolution, maxLidarRange);
         
         % Wyznaczenie okregow filtrujacych
-        middlePoints(end+1,:) = middle_points2(exploMapOcc,realPoses(end,:), middlePoints);
+        middlePoints(end+1,:) = middle_points2(exploMapOcc,allPoses(end,:), middlePoints);
         
         % Aktualizacja wyœwietlanej mapy zajêtoœci
         hold on
@@ -156,19 +156,19 @@ while true
         if exist('lidarPlot', 'var')
             delete(lidarPlot);
         end
-        lidarPlot = plot(realPoses(:,1), realPoses(:,2),'-k.','DisplayName','LIDAR');        
+        lidarPlot = plot(allPoses(:,1), allPoses(:,2),'-k.','DisplayName','LIDAR');        
         drawnow    
         
         % Aktualizacja odleg³oœci od koñca wyznaczonej œcie¿ki
         disp('NEXT MEASURMENT')       
-        distanceToGoal = norm(realPoses(end,1:2) - path(end, 1:2));
+        distanceToGoal = norm(allPoses(end,1:2) - path(end, 1:2));
         disp(num2str(distanceToGoal))
         
         % Konwersja mapy zajêtoœci
         temp_map = mapConversion(exploMapOcc);       
         costmap = vehicleCostmap(temp_map,'CollisionChecker',ccConfigOrg );
                
-        if differentRadiusFlag && checkFree(costmap, [realPoses(end,1:2) rad2deg(realPoses(end,3))])
+        if differentRadiusFlag && checkFree(costmap, [allPoses(end,1:2) rad2deg(allPoses(end,3))])
             warning('Vehicle left occupied area!')
             differentRadiusFlag = false;
             break
@@ -187,7 +187,7 @@ while true
             end           
         end
         
-        if checkOccupied(costmap, [realPoses(end,1:2) rad2deg(realPoses(end,3))])
+        if checkOccupied(costmap, [allPoses(end,1:2) rad2deg(allPoses(end,3))])
             disp("ROUTE OCCUPIED ")
         end
         
